@@ -1,0 +1,58 @@
+/*
+ * index.css
+ *
+ * Global entry-point stylesheet loaded by main.tsx.
+ *
+ * What it does:
+ *   1. Imports globals.css — which contains the full component and layout
+ *      CSS (sidebar, header, buttons, forms, tables, auth pages, etc.).
+ *
+ *   2. Defines CSS custom properties on :root that serve as design tokens
+ *      available anywhere in the application:
+ *        --font-sans           Inter with system-font fallbacks
+ *        --color-brand-green   Primary brand green (#16a34a)
+ *        --color-brand-dark    Dark text / sidebar background
+ *        --color-brand-navy    Darkest navy for headings
+ *        --color-surface       Page background (light grey)
+ *        --color-border        Subtle divider lines
+ *
+ *   3. Sets base box-sizing, body font, background, text colour, and
+ *      font-smoothing so every element inherits a consistent baseline.
+ *
+ *   4. Strips default margins from <p> and heading tags so components
+ *      control their own spacing rather than fighting browser defaults.
+ */
+
+@import "./styles/globals.css";
+
+/* ── Design tokens ── */
+:root {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --color-brand-green: #16a34a;
+  --color-brand-dark: #1e293b;
+  --color-brand-navy: #0f172a;
+  --color-surface: #f1f5f9;
+  --color-border: #e2e8f0;
+}
+
+/* ── Universal box-sizing ── */
+*, *::before, *::after { box-sizing: border-box; }
+
+/* ── Base body styles ── */
+body {
+  font-family: var(--font-sans);
+  background-color: var(--color-surface);
+  color: #1e293b;
+  margin: 0;
+  padding: 0;
+  /* Smoother font rendering on macOS and iOS */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Anchor tags inherit colour by default so they blend with surrounding text */
+a { color: inherit; }
+
+/* Strip default margins so spacing is always intentional */
+p { margin: 0; }
+h1, h2, h3, h4, h5, h6 { margin: 0; }
