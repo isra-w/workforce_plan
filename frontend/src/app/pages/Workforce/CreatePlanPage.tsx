@@ -9,12 +9,15 @@ import {
   FiSave,
   FiCheckCircle,
   FiCircle,
+  FiPaperclip,
+  FiUpload,
+  FiX,
 } from "react-icons/fi";
 import toast from "react-hot-toast";
 import Button from "../../components/Core/ui/Button";
 import StatusBadge from "../../components/common/StatusBadge";
 import { workforceService } from "../../services/workforceService";
-import { Department, PlanPosition, WorkforcePlan } from "../../../utils/types";
+import { Department, PlanAttachment, PlanPosition, WorkforcePlan } from "../../../utils/types";
 import { useAuth } from "../../context/AuthContext";
 
 /** Returns a blank position row — used when adding a new row to the table */
@@ -62,6 +65,18 @@ export default function CreatePlanPage() {
   // Array of position rows shown in the headcount table
   const [positions, setPositions] = useState<PlanPosition[]>([emptyPosition()]);
 
+  // Attachments already saved on the server (loaded with the plan in edit mode)
+  const [attachments, setAttachments] = useState<PlanAttachment[]>([]);
+
+  // Files the user has picked locally but not yet uploaded (pending queue)
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+
+  // Upload progress per filename — key: file.name, value: 0-100
+  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
+
+  // ID of the attachment currently being deleted (disables its remove button)
+  const [deletingAttachmentId, setDeletingAttachmentId] = useState<string | null>(null);
+
   /**
    * On mount:
    *   1. Fetch the department list to populate the dropdown.
@@ -100,6 +115,7 @@ export default function CreatePlanPage() {
             justification: p.justification || "",
           });
           setPositions(p.positions?.length ? p.positions : [emptyPosition()]);
+          setAttachments(p.attachments ?? []);
         })
         .catch(() => toast.error("Failed to load plan"))
         .finally(() => setLoading(false));
@@ -213,6 +229,90 @@ export default function CreatePlanPage() {
       setDeleting(false);
     }
   };
+
+  // ── Attachment handlers ────────────────────────────────────────────────
+
+  /**
+   * handleFilesPicked — validates each file (type + 10 MB) then adds to
+   * the pendingFiles queue. Invalid files are rejected with a toast.
+   */
+  const handleFilesPicked = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const picked = Array.from(e.target.files ?? []);
+    e.target.value = ""; // reset so the same file can be re-picked
+    const allowed = [
+      "application/pdf",
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/vnd.ms-excel",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "image/jpeg",
+      "image/png",
+      "image/gif",
+    ];
+    const maxBytes = 10 * 1024 * 1024;
+    const valid: File[] = [];
+    for (const file of picked) {
+      if (!allowed.includes(file.type)) {
+        toast.error(`"${file.name}" — unsupported type. Use PDF, Word, Excel, or image.`);
+        continue;
+      }
+      if (file.size > maxBytes) {
+        toast.error(`"${file.name}" exceeds 10 MB limit.`);
+        continue;
+      }
+      if (!pendingFiles.some((f) => f.name === file.name && f.size === file.size)) {
+        valid.push(file);
+      }
+    }
+    if (valid.length) setPendingFiles((prev) => [...prev, ...valid]);
+  };
+
+  /**
+   * handleUploadPending — uploads every file in pendingFiles one by one,
+   * tracking per-file progress. Requires the plan to already be saved.
+   */
+  const handleUploadPending = async () => {
+    if (!id) {
+      toast.error("Save the plan as a draft first, then attach documents.");
+      return;
+    }
+    if (pendingFiles.length === 0) return;
+    for (const file of pendingFiles) {
+      try {
+        setUploadProgress((prev) => ({ ...prev, [file.name]: 1 }));
+        const res = await workforceService.uploadAttachment(id, file, (pct) =>
+          setUploadProgress((prev) => ({ ...prev, [file.name]: pct }))
+        );
+        setAttachments((prev) => [...prev, res.data.data.attachment]);
+        setUploadProgress((prev) => { const n = { ...prev }; delete n[file.name]; return n; });
+        toast.success(`"${file.name}" uploaded`);
+      } catch {
+        toast.error(`Failed to upload "${file.name}"`);
+        setUploadProgress((prev) => { const n = { ...prev }; delete n[file.name]; return n; });
+      }
+    }
+    setPendingFiles([]);
+  };
+
+  /**
+   * handleDeleteAttachment — removes a saved attachment from the server
+   * and from the local attachments list.
+   */
+  const handleDeleteAttachment = async (attachmentId: string) => {
+    if (!id) return;
+    setDeletingAttachmentId(attachmentId);
+    try {
+      await workforceService.deleteAttachment(id, attachmentId);
+      setAttachments((prev) => prev.filter((a) => a.id !== attachmentId));
+      toast.success("Attachment removed");
+    } catch {
+      toast.error("Failed to remove attachment");
+    } finally {
+      setDeletingAttachmentId(null);
+    }
+  };
+
+  // ── Position helpers ───────────────────────────────────────────────────
 
   /** Adds a blank position row to the end of the positions array */
   const addPosition = () => setPositions([...positions, emptyPosition()]);
@@ -561,6 +661,150 @@ export default function CreatePlanPage() {
               className="field-textarea"
             />
           </section>
+
+          {/* ── Section 4: Supporting Documents ── */}
+          {/* Shown to all users; upload controls only available in edit mode */}
+          <section className="section-card">
+            <div className="section-header space-between">
+              <div className="section-header-left">
+                <FiPaperclip className="section-icon" size={18} />
+                <h2 className="section-title">Supporting Documents</h2>
+              </div>
+              {/* Total attachment count badge */}
+              {(attachments.length > 0 || pendingFiles.length > 0) && (
+                <span className="attachment-count-badge">
+                  {attachments.length + pendingFiles.length} file{attachments.length + pendingFiles.length !== 1 ? "s" : ""}
+                </span>
+              )}
+            </div>
+
+            <div className="attachment-body">
+              {/* ── Already-uploaded attachments ── */}
+              {attachments.length > 0 && (
+                <ul className="attachment-list">
+                  {attachments.map((att) => (
+                    <li key={att.id} className="attachment-item">
+                      <span className="attachment-icon">
+                        {att.mimetype?.includes("pdf") ? "📄" :
+                         att.mimetype?.includes("image") ? "🖼️" :
+                         att.mimetype?.includes("sheet") || att.mimetype?.includes("excel") ? "📊" : "📎"}
+                      </span>
+                      <div className="attachment-info">
+                        <p className="attachment-name">{att.filename}</p>
+                        <p className="attachment-meta">
+                          {att.size ? `${(att.size / 1024).toFixed(1)} KB` : ""}
+                          {att.created_at ? ` · ${new Date(att.created_at).toLocaleDateString()}` : ""}
+                        </p>
+                      </div>
+                      {/* Remove button — only in editable state */}
+                      {isEditable && (
+                        <button
+                          className="attachment-remove-btn"
+                          onClick={() => handleDeleteAttachment(att.id)}
+                          disabled={deletingAttachmentId === att.id}
+                          title="Remove attachment"
+                        >
+                          <FiX size={14} />
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {/* ── Pending files (picked but not yet uploaded) ── */}
+              {pendingFiles.length > 0 && (
+                <ul className="attachment-list attachment-list-pending">
+                  {pendingFiles.map((file) => {
+                    const pct = uploadProgress[file.name];
+                    const isUploading = pct !== undefined;
+                    return (
+                      <li key={`${file.name}-${file.size}`} className="attachment-item attachment-item-pending">
+                        <span className="attachment-icon">📎</span>
+                        <div className="attachment-info">
+                          <p className="attachment-name">{file.name}</p>
+                          {isUploading ? (
+                            /* Progress bar shown while uploading */
+                            <div className="attachment-progress-bar">
+                              <div
+                                className="attachment-progress-fill"
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                          ) : (
+                            <p className="attachment-meta pending-label">
+                              {(file.size / 1024).toFixed(1)} KB · Pending upload
+                            </p>
+                          )}
+                        </div>
+                        {/* Only allow removal if not actively uploading */}
+                        {!isUploading && (
+                          <button
+                            className="attachment-remove-btn"
+                            onClick={() =>
+                              setPendingFiles((prev) =>
+                                prev.filter((f) => !(f.name === file.name && f.size === file.size))
+                              )
+                            }
+                            title="Remove from queue"
+                          >
+                            <FiX size={14} />
+                          </button>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+
+              {/* ── Empty state ── */}
+              {attachments.length === 0 && pendingFiles.length === 0 && (
+                <p className="attachment-empty">
+                  No supporting documents attached yet.
+                </p>
+              )}
+
+              {/* ── File picker + upload button (edit mode only) ── */}
+              {isEditable && (
+                <div className="attachment-actions">
+                  {/* Hidden file input — triggered by the label button */}
+                  <input
+                    id="attachment-file-input"
+                    type="file"
+                    multiple
+                    accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif"
+                    className="file-input-hidden"
+                    onChange={handleFilesPicked}
+                  />
+                  <label htmlFor="attachment-file-input" className="file-upload-card">
+                    <FiPaperclip size={15} />
+                    Choose files
+                  </label>
+
+                  {/* Upload button — only shown when there are pending files */}
+                  {pendingFiles.length > 0 && (
+                    <Button
+                      variant="primary"
+                      icon={<FiUpload size={15} />}
+                      onClick={handleUploadPending}
+                      disabled={!id}
+                      title={!id ? "Save draft first to enable uploads" : undefined}
+                    >
+                      Upload {pendingFiles.length} file{pendingFiles.length !== 1 ? "s" : ""}
+                    </Button>
+                  )}
+
+                  {/* Nudge shown in create mode before the plan has an ID */}
+                  {!id && pendingFiles.length > 0 && (
+                    <p className="attachment-nudge">
+                      Save the plan as a draft first to upload your files.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          </section>
+
         </div>
 
         {/* ── Right sidebar ── */}

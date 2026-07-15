@@ -74,7 +74,11 @@ export default function PlanningListPage() {
    */
   const handleDelete = async (planId: string, planTitle: string) => {
     // Native confirm dialog — stops accidental deletions
-    if (!window.confirm(`Are you sure you want to delete "${planTitle}"? This cannot be undone.`)) {
+    if (
+      !window.confirm(
+        `Are you sure you want to delete "${planTitle}"? This cannot be undone.`,
+      )
+    ) {
       return;
     }
     setDeleting(planId); // disable only this row's delete button
@@ -131,10 +135,13 @@ export default function PlanningListPage() {
             <tbody>
               {plans.map((plan) => {
                 // Sum all position counts for the total headcount column
-                const totalHc = plan.positions?.reduce((s, p) => s + p.count, 0) || 0;
+                const totalHc =
+                  plan.positions?.reduce((s, p) => s + p.count, 0) || 0;
                 return (
                   <tr key={plan.id} className="table-row">
-                    <td className="table-cell table-cell-emphasis">{plan.title}</td>
+                    <td className="table-cell table-cell-emphasis">
+                      {plan.title}
+                    </td>
                     <td className="table-cell">{plan.department?.name}</td>
                     <td className="table-cell table-cell-capitalize">
                       {/* Show "quarterly Q2" or just "annual" */}
@@ -153,7 +160,9 @@ export default function PlanningListPage() {
                           to={`/workforce/plans/${plan.id}`}
                           className="action-link"
                         >
-                          {["DRAFT", "SUBMITTED"].includes(plan.status) ? "Edit" : "View"}
+                          {["DRAFT", "SUBMITTED"].includes(plan.status)
+                            ? "View"
+                            : "View"}
                         </Link>
 
                         {/* Delete button — only shown for DRAFT and SUBMITTED plans */}
@@ -177,8 +186,13 @@ export default function PlanningListPage() {
               {plans.length === 0 && (
                 <tr>
                   <td colSpan={7} className="empty-state">
-                    <span className="empty-state-text">No workforce plans yet.</span>
-                    <Link to="/workforce/plans/new" className="empty-state-link">
+                    <span className="empty-state-text">
+                      No workforce plans yet.
+                    </span>
+                    <Link
+                      to="/workforce/plans/new"
+                      className="empty-state-link"
+                    >
                       Create your first plan
                     </Link>
                   </td>

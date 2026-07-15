@@ -23,8 +23,9 @@
  *   submitPlan         POST   /workforce/plans/:id/submit  — submit for approval
  *   reviewPlan         POST   /workforce/plans/:id/review  — approve or reject
  *   deletePlan         DELETE /workforce/plans/:id         — hard delete
- *   getVersions        GET    /workforce/plans/:id/versions — version history
- *   uploadAttachment   POST   /workforce/plans/:id/attachments — multipart upload
+ *   getVersions        GET    /workforce/plans/:id/versions            — version history
+ *   uploadAttachment   POST   /workforce/plans/:id/attachments         — multipart upload with progress
+ *   deleteAttachment   DELETE /workforce/plans/:id/attachments/:aid    — remove file + DB record
  *
  * Session helpers (used by AuthContext):
  *   saveSession   — writes token + user JSON to localStorage.
@@ -105,14 +106,31 @@ export const workforceService = {
   /**
    * Uploads a file attachment for a plan using multipart/form-data.
    * The file is stored on disk under /uploads and its metadata is saved to the DB.
+   * Allowed types: PDF, Word, Excel, and images (validated on the backend too).
+   * @param onProgress optional callback receiving upload percentage (0-100)
    */
-  uploadAttachment: (id: string, file: File) => {
+  uploadAttachment: (id: string, file: File, onProgress?: (pct: number) => void) => {
     const formData = new FormData();
     formData.append("file", file);
     return api.post(`/workforce/plans/${id}/attachments`, formData, {
       headers: { "Content-Type": "multipart/form-data" },
+      onUploadProgress: onProgress
+        ? (evt) => {
+            if (evt.total) {
+              onProgress(Math.round((evt.loaded * 100) / evt.total));
+            }
+          }
+        : undefined,
     });
   },
+
+  /**
+   * Deletes a single attachment by ID.
+   * Removes both the DB record and the physical file from disk.
+   * Only allowed while the plan is in DRAFT, SUBMITTED, or REJECTED status.
+   */
+  deleteAttachment: (planId: string, attachmentId: string) =>
+    api.delete(`/workforce/plans/${planId}/attachments/${attachmentId}`),
 };
 
 /**

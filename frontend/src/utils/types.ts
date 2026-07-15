@@ -25,6 +25,10 @@
  * PlanVersion    — metadata for a saved plan snapshot (version number, author,
  *                  timestamp).
  *
+ * PlanAttachment — a single file attached to a plan. Mirrors the PlanAttachment
+ *                  Prisma model: id, plan_id, original filename, server filepath,
+ *                  MIME type, byte size, and creation timestamp.
+ *
  * DashboardData  — shape of the response returned by GET /workforce/dashboard,
  *                  containing KPI metrics, department list, active requests, and
  *                  all non-draft plans.
@@ -78,6 +82,7 @@ export interface WorkforcePlan {
   last_saved_at: string;
   department?: Department;
   positions?: PlanPosition[];
+  attachments?: PlanAttachment[];
   created_by?: { full_name: string; email: string };
   approval_logs?: ApprovalLog[];
   versions?: PlanVersion[];
@@ -98,6 +103,30 @@ export interface PlanVersion {
   version: number;
   created_at: string;
   created_by?: { full_name: string };
+}
+
+/**
+ * PlanAttachment
+ *
+ * Mirrors the PlanAttachment model in the Prisma schema.
+ * Returned inside WorkforcePlan.attachments[] by the getPlan endpoint.
+ *
+ *   id         UUID primary key.
+ *   plan_id    FK to the parent WorkforcePlan.
+ *   filename   The original filename as uploaded by the user (e.g. "budget.pdf").
+ *   filepath   Absolute server path where the file is stored on disk.
+ *   mimetype   MIME type detected by multer (e.g. "application/pdf").
+ *   size       File size in bytes.
+ *   created_at ISO timestamp of when the attachment was uploaded.
+ */
+export interface PlanAttachment {
+  id: string;
+  plan_id: string;
+  filename: string;
+  filepath: string;
+  mimetype: string;
+  size: number;
+  created_at: string;
 }
 
 export interface DashboardData {
