@@ -68,7 +68,7 @@ export default function CreatePlanPage() {
    *      Pre-selects the first department if none is already set.
    *   2. If in edit mode, fetch the existing plan and hydrate the form.
    */
-  
+
   useEffect(() => {
     workforceService.getDepartments().then((res) => {
       setDepartments(res.data.data.departments);
@@ -249,15 +249,14 @@ export default function CreatePlanPage() {
    * active while the user is editing.
    */
   const workflowSteps = [
-    { label: "Draft",             desc: "Currently editing",         active: true  },
-    { label: "Dept Head Approval",desc: "Pending submission",        active: false },
-    { label: "Finance Review",    desc: "Budget allocation check",   active: false },
-    { label: "CEO Approval",      desc: "Final executive sign-off",  active: false },
+    { label: "Draft", desc: "Currently editing", active: true },
+    { label: "Dept Head Approval", desc: "Pending submission", active: false },
+    { label: "Finance Review", desc: "Budget allocation check", active: false },
+    { label: "CEO Approval", desc: "Final executive sign-off", active: false },
   ];
 
   return (
     <div className="plan-page">
-
       {/* ── Page Header ── */}
       <div className="plan-header">
         <div>
@@ -273,7 +272,8 @@ export default function CreatePlanPage() {
             {isEdit ? "Edit Workforce Plan" : "New Workforce Plan"}
           </h1>
           <p className="plan-description">
-            Define strategic staffing requirements for the upcoming planning cycle.
+            Define strategic staffing requirements for the upcoming planning
+            cycle.
           </p>
         </div>
 
@@ -327,10 +327,8 @@ export default function CreatePlanPage() {
 
       {/* ── Two-column content grid ── */}
       <div className="plan-grid">
-
         {/* ── Main column ── */}
         <div className="plan-main-column">
-
           {/* Section 1: Basic plan information */}
           <section className="section-card">
             <div className="section-header">
@@ -384,7 +382,9 @@ export default function CreatePlanPage() {
                     className="field-select"
                   >
                     {[2024, 2025, 2026].map((y) => (
-                      <option key={y} value={y}>{y}</option>
+                      <option key={y} value={y}>
+                        {y}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -398,7 +398,9 @@ export default function CreatePlanPage() {
                           type="radio"
                           name="planning_period"
                           checked={form.planning_period === p}
-                          onChange={() => setForm({ ...form, planning_period: p })}
+                          onChange={() =>
+                            setForm({ ...form, planning_period: p })
+                          }
                           disabled={!isEditable}
                         />
                         {p.charAt(0) + p.slice(1).toLowerCase()}
@@ -421,39 +423,13 @@ export default function CreatePlanPage() {
                     className="field-select"
                   >
                     {[1, 2, 3, 4].map((q) => (
-                      <option key={q} value={q}>Q{q}</option>
+                      <option key={q} value={q}>
+                        Q{q}
+                      </option>
                     ))}
                   </select>
                 </div>
               )}
-
-              {/* Start and end date pickers */}
-              <div className="field-grid">
-                <div className="field-row">
-                  <label className="field-label">Start Date</label>
-                  <input
-                    type="date"
-                    value={form.start_date}
-                    onChange={(e) =>
-                      setForm({ ...form, start_date: e.target.value })
-                    }
-                    disabled={!isEditable}
-                    className="field-input"
-                  />
-                </div>
-                <div className="field-row">
-                  <label className="field-label">End Date</label>
-                  <input
-                    type="date"
-                    value={form.end_date}
-                    onChange={(e) =>
-                      setForm({ ...form, end_date: e.target.value })
-                    }
-                    disabled={!isEditable}
-                    className="field-input"
-                  />
-                </div>
-              </div>
             </div>
           </section>
 
@@ -476,7 +452,9 @@ export default function CreatePlanPage() {
                 <thead>
                   <tr className="table-header-row">
                     <th className="table-heading">Position Title</th>
-                    <th className="table-heading table-heading-narrow">Count</th>
+                    <th className="table-heading table-heading-narrow">
+                      Count
+                    </th>
                     <th className="table-heading">Employment Type</th>
                     <th className="table-heading">Priority</th>
                     {/* Delete column header — only shown in edit mode */}
@@ -518,7 +496,11 @@ export default function CreatePlanPage() {
                         <select
                           value={pos.employment_type}
                           onChange={(e) =>
-                            updatePosition(idx, "employment_type", e.target.value)
+                            updatePosition(
+                              idx,
+                              "employment_type",
+                              e.target.value,
+                            )
                           }
                           disabled={!isEditable}
                           className="table-input"
@@ -648,7 +630,6 @@ export default function CreatePlanPage() {
             )}
           </div>
         </div>
-
       </div>
     </div>
   );
