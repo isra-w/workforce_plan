@@ -52,8 +52,6 @@ async function main() {
       id: "00000000-0000-0000-0000-000000000001",
       fiscal_year: 2025,
       name: "FY 2025 (Jan - Dec)",
-      start_date: new Date("2025-01-01"),
-      end_date: new Date("2025-12-31"),
       is_active: true,
     },
   });
