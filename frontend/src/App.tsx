@@ -1,36 +1,39 @@
 /**
  * App.tsx
  *
- *   1. Routing      — BrowserRouter wraps the whole tree so any component can
- *                     use React Router hooks (useNavigate, useParams, etc.).
+ * Root component. Wires together:
+ *   BrowserRouter → AuthProvider → Toaster → RoleAwareRoutes
  *
- *   2. Auth state   — AuthProvider reads the JWT + user from localStorage on
- *                     mount, exposes login/logout/register helpers via context ,
- *                     and keeps the user object in sync with the backend.
+ * Route map by role:
  *
- *   3. Notifications — <Toaster> (react-hot-toast) renders a portal-based
- *                     toast container anchored to the top-right corner. Any
- *                     component can call toast() to show a notification.
+ *   Public (no auth):
+ *     /login  /signup  /verify-email
  *
- * RoleAwareRoutes (inner component)
- *   Must live *inside* AuthProvider so it can call useAuth() to read the
- *   current user's role. It conditionally registers plan-creation routes so
- *   CANDIDATE users never see them.
+ *   WORKFORCE_PLANNER (protected + verified):
+ *     /workforce            → WorkforceDashboard
+ *     /workforce/planning   → PlanningListPage
+ *     /workforce/plans/new  → CreatePlanPage
+ *     /workforce/plans/:id  → CreatePlanPage
+ *     /workforce/*          → PlaceholderPage
+ *     /settings             → PlaceholderPage
  *
- *   Route groups:
- *     Public  — /login, /signup, /verify-email
- *                 These are accessible without a token.
+ *   HR (protected + verified):
+ *     /workforce            → WorkforceDashboard
+ *     /review/hr            → HRReviewPage  (SUBMITTED plans)
+ *     (any /workforce/plans/* redirects to /review/hr)
  *
- *     Protected (wrapped in <ProtectedRoute> which redirects to /login if no
- *     valid session exists, or to /verify-email if the email is unverified):
- *       /workforce            → WorkforceDashboard  (KPIs + plan table)
- *       /workforce/planning   → PlanningListPage    (all plans as a table)
- *       /workforce/plans/new  → CreatePlanPage      (non-candidates only)
- *       /workforce/plans/:id  → CreatePlanPage      (view/edit existing plan)
+ *   CEO (protected + verified):
+ *     /workforce            → WorkforceDashboard
+ *     /review/ceo           → CEOReviewPage (HR_APPROVED plans)
+ *     (any /workforce/plans/* redirects to /review/ceo)
  *
- *     All protected routes share the <AppLayout> shell (sidebar + header).
+ *   CANDIDATE (protected + verified):
+ *     /workforce            → WorkforceDashboard
+ *     /workforce/candidates → PlaceholderPage
  *
- *     Fallback — "/" and any unknown path redirect to /workforce.
+ *   All roles:
+ *     /settings             → PlaceholderPage
+ *     unknown path          → redirect /workforce
  */
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
@@ -43,13 +46,9 @@ import VerifyEmailPage from "./app/pages/Auth/VerifyEmailPage";
 import WorkforceDashboard from "./app/pages/Workforce/WorkforceDashboard";
 import PlanningListPage from "./app/pages/Workforce/PlanningListPage";
 import CreatePlanPage from "./app/pages/Workforce/CreatePlanPage";
+import HRReviewPage from "./app/pages/Review/HRReviewPage";
+import CEOReviewPage from "./app/pages/Review/CEOReviewPage";
 
-/**
- * PlaceholderPage
- *
- * Simple stand-in component rendered for routes that are linked in the
- * sidebar but not yet implemented. Shows the section title and "Coming soon".
- */
 function PlaceholderPage({ title }: { title: string }) {
   return (
     <div className="placeholder-page">
@@ -61,65 +60,83 @@ function PlaceholderPage({ title }: { title: string }) {
   );
 }
 
-/**
- * RoleAwareRoutes
- *
- * Reads the authenticated user's role from AuthContext and uses it to decide
- * which routes to register. CANDIDATE users must not be able to navigate to
- * plan creation/editing pages, so those <Route> elements are simply not
- * rendered for them — React Router will fall through to the catch-all redirect.
- *
- * This component is intentionally kept separate from App so it can call
- * useAuth() (which requires being inside AuthProvider).
- */
 function RoleAwareRoutes() {
   const { user } = useAuth();
+  const role = user?.role;
 
-  // CANDIDATE users only see the dashboard and candidates page
-  const isCandidate = user?.role === "CANDIDATE";
+  const isPlanner   = role === "WORKFORCE_PLANNER";
+  const isHR        = role === "HR";
+  const isCEO       = role === "CEO";
+  const isCandidate = role === "CANDIDATE";
 
   return (
     <Routes>
-      {/* ── Public routes — no auth required ── */}
-      <Route path="/login" element={<LoginForm />} />
-      <Route path="/signup" element={<SignupForm />} />
+      {/* ── Public ── */}
+      <Route path="/login"        element={<LoginForm />} />
+      <Route path="/signup"       element={<SignupForm />} />
       <Route path="/verify-email" element={<VerifyEmailPage />} />
 
-      {/* ── Protected routes — requires valid, verified JWT ── */}
+      {/* ── Protected ── */}
       <Route element={<ProtectedRoute />}>
-        {/* AppLayout provides the sidebar + header shell for all inner pages */}
         <Route element={<AppLayout />}>
+
+          {/* Dashboard — visible to all roles */}
           <Route path="/workforce" element={<WorkforceDashboard />} />
-          <Route path="/workforce/planning" element={<PlanningListPage />} />
 
-          {/* Only planners / HR / CEO can create or edit plans */}
-          {!isCandidate && <Route path="/workforce/plans/new" element={<CreatePlanPage />} />}
-          {!isCandidate && <Route path="/workforce/plans/:id" element={<CreatePlanPage />} />}
+          {/* ── HR role ── */}
+          {isHR && (
+            <>
+              {/* HR's primary working page */}
+              <Route path="/review/hr" element={<HRReviewPage />} />
+              {/* Redirect any attempt to reach planner pages to the HR queue */}
+              <Route path="/workforce/planning"  element={<Navigate to="/review/hr" replace />} />
+              <Route path="/workforce/plans/*"   element={<Navigate to="/review/hr" replace />} />
+            </>
+          )}
 
-          {/* Placeholder pages for future sections */}
-          <Route path="/workforce/vacancies" element={<PlaceholderPage title="Vacancies" />} />
-          <Route path="/workforce/candidates" element={<PlaceholderPage title="Candidates" />} />
-          <Route path="/workforce/interviews" element={<PlaceholderPage title="Interviews" />} />
-          <Route path="/workforce/offers" element={<PlaceholderPage title="Offers" />} />
-          <Route path="/workforce/analytics" element={<PlaceholderPage title="Analytics" />} />
+          {/* ── CEO role ── */}
+          {isCEO && (
+            <>
+              {/* CEO's primary working page */}
+              <Route path="/review/ceo" element={<CEOReviewPage />} />
+              {/* Redirect any attempt to reach planner pages to the CEO queue */}
+              <Route path="/workforce/planning"  element={<Navigate to="/review/ceo" replace />} />
+              <Route path="/workforce/plans/*"   element={<Navigate to="/review/ceo" replace />} />
+            </>
+          )}
+
+          {/* ── WORKFORCE_PLANNER role ── */}
+          {isPlanner && (
+            <>
+              <Route path="/workforce/planning"   element={<PlanningListPage />} />
+              <Route path="/workforce/plans/new"  element={<CreatePlanPage />} />
+              <Route path="/workforce/plans/:id"  element={<CreatePlanPage />} />
+              <Route path="/workforce/vacancies"  element={<PlaceholderPage title="Vacancies" />} />
+              <Route path="/workforce/candidates" element={<PlaceholderPage title="Candidates" />} />
+              <Route path="/workforce/interviews" element={<PlaceholderPage title="Interviews" />} />
+              <Route path="/workforce/offers"     element={<PlaceholderPage title="Offers" />} />
+              <Route path="/workforce/analytics"  element={<PlaceholderPage title="Analytics" />} />
+            </>
+          )}
+
+          {/* ── CANDIDATE role ── */}
+          {isCandidate && (
+            <Route path="/workforce/candidates" element={<PlaceholderPage title="Candidates" />} />
+          )}
+
+          {/* ── Shared routes (all roles) ── */}
           <Route path="/settings" element={<PlaceholderPage title="Settings" />} />
+
         </Route>
       </Route>
 
-      {/* ── Fallback redirects ── */}
+      {/* ── Fallback ── */}
       <Route path="/" element={<Navigate to="/workforce" replace />} />
       <Route path="*" element={<Navigate to="/workforce" replace />} />
     </Routes>
   );
 }
 
-/**
- * App
- *
- * Top-level component exported and mounted by main.tsx.
- * Renders the provider stack (BrowserRouter → AuthProvider → Toaster)
- * then delegates all routing to RoleAwareRoutes.
- */
 export default function App() {
   return (
     <BrowserRouter>

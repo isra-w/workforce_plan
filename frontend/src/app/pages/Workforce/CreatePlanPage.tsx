@@ -344,15 +344,36 @@ export default function CreatePlanPage() {
   }
 
   /**
-   * workflowSteps — static visual representation of the approval pipeline
-   * shown in the right sidebar. The first step ("Draft") is always marked
-   * active while the user is editing.
+   * workflowSteps — visual pipeline that reflects the plan's actual current status.
+   * The active step is derived from plan.status so the sidebar always shows
+   * exactly where in the pipeline the plan currently sits.
    */
+  const currentStatus = plan?.status ?? "DRAFT";
   const workflowSteps = [
-    { label: "Draft", desc: "Currently editing", active: true },
-    { label: "Dept Head Approval", desc: "Pending submission", active: false },
-    { label: "Finance Review", desc: "Budget allocation check", active: false },
-    { label: "CEO Approval", desc: "Final executive sign-off", active: false },
+    {
+      label: "Draft",
+      desc: currentStatus === "DRAFT" ? "Currently editing" : "Completed",
+      active: currentStatus === "DRAFT",
+      done: !["DRAFT"].includes(currentStatus),
+    },
+    {
+      label: "Submitted to HR",
+      desc: currentStatus === "SUBMITTED" ? "Awaiting HR review" : currentStatus === "DRAFT" ? "Pending submission" : "Completed",
+      active: currentStatus === "SUBMITTED",
+      done: !["DRAFT", "SUBMITTED"].includes(currentStatus),
+    },
+    {
+      label: "HR Approval",
+      desc: currentStatus === "HR_APPROVED" ? "Forwarded to CEO" : currentStatus === "REJECTED" ? "Rejected — revision needed" : "Pending",
+      active: currentStatus === "HR_APPROVED" || currentStatus === "REJECTED",
+      done: currentStatus === "APPROVED",
+    },
+    {
+      label: "CEO Approval",
+      desc: currentStatus === "APPROVED" ? "Approved — headcount authorised" : "Pending",
+      active: currentStatus === "APPROVED",
+      done: false,
+    },
   ];
 
   return (
@@ -380,23 +401,32 @@ export default function CreatePlanPage() {
         {/* Action buttons — only shown when the plan is in an editable state */}
         {isEditable && (
           <div className="plan-actions">
-            {/* Save Draft — "Withdraw & Save" label when plan is already SUBMITTED */}
+            {/* Save Draft:
+                - SUBMITTED plan → "Withdraw & Save" (bumps version automatically)
+                - REJECTED plan  → "Save Revision"   (bumps version automatically)
+                - DRAFT plan     → "Save Draft"       (no auto-bump) */}
             <Button
               variant="secondary"
               icon={<FiSave size={16} />}
               loading={saving}
               onClick={() => handleSaveDraft(false)}
             >
-              {plan?.status === "SUBMITTED" ? "Withdraw & Save" : "Save Draft"}
+              {plan?.status === "SUBMITTED"
+                ? "Withdraw & Save"
+                : plan?.status === "REJECTED"
+                ? "Save Revision"
+                : "Save Draft"}
             </Button>
 
-            {/* Submit for Approval — saves and moves to SUBMITTED */}
+            {/* Submit / Resubmit — version does NOT change on submission */}
             <Button
               icon={<FiSend size={16} />}
               loading={saving}
               onClick={handleSubmit}
             >
-              Submit for Approval
+              {plan?.status === "REJECTED"
+                ? `Resubmit (v${plan?.version})`
+                : "Submit for Approval"}
             </Button>
 
             {/* Delete button — only for DRAFT and SUBMITTED plans */}
@@ -823,10 +853,10 @@ export default function CreatePlanPage() {
             <div className="workflow-list">
               {workflowSteps.map((step, i) => (
                 <div key={i} className="workflow-step">
-                  {/* Green checkmark for the active step, grey circle for pending */}
-                  {step.active ? (
+                  {/* Green checkmark for the active/done step, grey circle for pending */}
+                  {step.active || step.done ? (
                     <FiCheckCircle
-                      className="workflow-step-icon workflow-step-icon-active"
+                      className={`workflow-step-icon ${step.done ? "workflow-step-icon-done" : "workflow-step-icon-active"}`}
                       size={18}
                     />
                   ) : (
@@ -860,12 +890,33 @@ export default function CreatePlanPage() {
                   {positions.filter((p) => p.title).length}
                 </span>
               </div>
+              {/* Attachments count */}
+              <div className="summary-row">
+                <span className="summary-label">Attachments</span>
+                <span className="summary-value">{attachments.length}</span>
+              </div>
+              {/* Current version */}
+              {plan && (
+                <div className="summary-row">
+                  <span className="summary-label">Current Version</span>
+                  <span className="summary-value">v{plan.version}</span>
+                </div>
+              )}
+              {/* Next version hint — shown when the next save will auto-bump */}
+              {plan && (plan.status === "REJECTED" || plan.status === "SUBMITTED") && (
+                <div className="summary-row">
+                  <span className="summary-label">Next Save Will Be</span>
+                  <span className="summary-value summary-emphasis">v{plan.version + 1}</span>
+                </div>
+              )}
             </div>
             <p className="summary-note">
               Last saved by {user?.full_name || "You"}
             </p>
-            {/* "Save as New Version" — only shown in edit mode on editable plans */}
-            {isEdit && isEditable && (
+            {/* "Save as New Version" — only for plain DRAFT plans.
+                REJECTED and SUBMITTED edits bump version automatically,
+                so showing this button for those states would be misleading. */}
+            {isEdit && isEditable && plan?.status === "DRAFT" && (
               <div className="section-footer">
                 <Button variant="ghost" onClick={() => handleSaveDraft(true)}>
                   Save as New Version (v{(plan?.version || 0) + 1})

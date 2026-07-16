@@ -19,324 +19,142 @@ enum PlanningPeriod {
   QUARTERLY
 }
 
-// PlanStatus — the lifecycle states a workforce plan moves through.
-// The flow from creation to final decision looks like this:
-//
-//   DRAFT → SUBMITTED → HR_REVIEW → CEO_REVIEW → APPROVED
-//                 ↘              ↘             ↘
-//               REJECTED       REJECTED      REJECTED
-//
-//   DRAFT      the planner is still editing; not yet submitted for review.
-//   SUBMITTED  the planner has submitted the plan; awaiting first review.
-//   HR_REVIEW  HR is currently reviewing the plan.
-//   CEO_REVIEW the plan has passed HR and is awaiting CEO sign-off.
-//   APPROVED   the CEO has approved the plan; headcount is authorised.
-//   REJECTED   rejected at any stage; the planner can edit and resubmit.
 enum PlanStatus {
   DRAFT
   SUBMITTED
-  HR_REVIEW
-  CEO_REVIEW
+  HR_APPROVED
   APPROVED
   REJECTED
 }
 
-// EmploymentType — the contract basis for each requested position.
-//   FULL_TIME   standard permanent employee (40 hrs/week).
-//   PART_TIME   fewer than full-time hours; lower budget estimate (~$40k/yr).
-//   CONTRACT    fixed-term or freelance engagement (~$60k/yr estimate).
 enum EmploymentType {
   FULL_TIME
   PART_TIME
   CONTRACT
 }
 
-// Priority — how urgently a position needs to be filled.
-//   HIGH    critical role; flagged in the dashboard's "critical roles" KPI.
-//   MEDIUM  important but not immediately blocking.
-//   LOW     nice-to-have; lowest budget/hiring priority.
 enum Priority {
   HIGH
   MEDIUM
   LOW
 }
 
-
-// =============================================================================
-// MODELS
-// Each model maps to one table in the database.
-// Field annotations:
-//   @id              marks the primary key column.
-//   @default(uuid()) auto-generates a UUID for new rows.
-//   @default(now())  sets the column to the current timestamp on insert.
-//   @updatedAt       automatically updates the column to now() on every UPDATE.
-//   @unique          adds a UNIQUE constraint — no two rows can share this value.
-//   ?                the field is optional (nullable column in SQL).
-//   @relation(...)   defines the foreign-key link between two models.
-//   onDelete: Cascade if the parent row is deleted, all related rows are deleted too.
-//   @@map("table")   sets the actual SQL table name (snake_case convention).
-// =============================================================================
-
-
-// -----------------------------------------------------------------------------
-// User
-// Represents everyone who can log in to the application.
-// One user can create many WorkforcePlans, write many PlanVersions, and
-// perform many approval actions (ApprovalLogs).
-// -----------------------------------------------------------------------------
 model User {
-  // ── Identity & authentication ────────────────────────────────────────────
-  id             String   @id @default(uuid())  // UUID primary key — never changes after creation
-  email          String   @unique               // login email; UNIQUE ensures no duplicate accounts
-  password_hash  String                         // bcrypt hash of the user's password; never store plaintext
-  full_name      String                         // display name shown in the UI and approval logs
+  id                 String          @id @default(uuid())
+  email              String          @unique
+  password_hash      String
+  full_name          String
+  role               UserRole        @default(WORKFORCE_PLANNER)
+  title              String?
+  is_verified        Boolean         @default(false)
+  verification_token String?
+  is_active          Boolean         @default(true)
+  created_at         DateTime        @default(now())
+  updated_at         DateTime        @updatedAt
+  plans              WorkforcePlan[]
+  plan_versions      PlanVersion[]
+  approval_logs      ApprovalLog[]
 
-  // ── Access control ────────────────────────────────────────────────────────
-  role           UserRole @default(WORKFORCE_PLANNER) // determines which API endpoints the user can call
-  title          String?                        // optional job title (e.g. "Senior HR Manager"); set via completeProfile
-
-  // ── Email verification ────────────────────────────────────────────────────
-  is_verified        Boolean  @default(false)  // false until the user clicks the verification link in their email
-  verification_token String?                   // one-time token emailed on registration; null after verification
-
-  // ── Account status & timestamps ───────────────────────────────────────────
-  is_active   Boolean  @default(true)  // soft-disable an account without deleting it
-  created_at  DateTime @default(now()) // when the account was first registered
-  updated_at  DateTime @updatedAt      // auto-updated on every save (tracks last profile edit)
-
-  // ── Relations (reverse side) ──────────────────────────────────────────────
-  // These fields don't create extra columns; they let Prisma load related records.
-  plans         WorkforcePlan[] // all plans this user has created
-  plan_versions PlanVersion[]   // all version snapshots this user has saved
-  approval_logs ApprovalLog[]   // all review actions this user has performed
-
-  @@map("users") // SQL table name
+  @@map("users")
 }
 
-
-// -----------------------------------------------------------------------------
-// Department
-// An organisational unit (e.g. "Finance", "Marketing").
-// Static baseline headcount figures are stored here and used by the dashboard
-// to show capacity versus what has actually been planned.
-// -----------------------------------------------------------------------------
 model Department {
-  // ── Identity ──────────────────────────────────────────────────────────────
-  id   String  @id @default(uuid()) // UUID primary key
-  name String  @unique              // human-readable department name; UNIQUE so no duplicates
-  code String? @unique              // short code used in reports (e.g. "FIN", "MKT"); optional but unique
-
-  // ── Static headcount baselines (maintained manually / via seed) ───────────
-  approved_hc Int @default(0) // headcount that has already been officially approved in past cycles
-  budgeted_hc Int @default(0) // headcount the department is budgeted to have this fiscal year
-  current_hc  Int @default(0) // actual number of staff currently employed in this department
-
-  // ── Timestamps ────────────────────────────────────────────────────────────
-  created_at DateTime @default(now()) // when this department record was created
-
-  // ── Relations ─────────────────────────────────────────────────────────────
-  plans WorkforcePlan[] // all workforce plans linked to this department
+  id          String          @id @default(uuid())
+  name        String          @unique
+  code        String?         @unique
+  approved_hc Int             @default(0)
+  current_hc  Int             @default(0)
+  created_at  DateTime        @default(now())
+  plans       WorkforcePlan[]
 
   @@map("departments")
 }
 
-
-// -----------------------------------------------------------------------------
-// PlanningCycle
-// A fiscal-year window that gates plan submissions. The application requires
-// an active cycle (is_active = true) before a planner can submit a plan.
-// Only one cycle should be active at any given time.
-// -----------------------------------------------------------------------------
 model PlanningCycle {
-  // ── Identity ──────────────────────────────────────────────────────────────
-  id          String   @id @default(uuid()) // UUID primary key
-  fiscal_year Int                           // the year this cycle belongs to (e.g. 2025)
-  name        String                        // human-readable label (e.g. "FY 2025 (Jan - Dec)")
-
-  // ── Duration ──────────────────────────────────────────────────────────────
-  start_date DateTime // first day of the planning window (e.g. 2025-01-01)
-  end_date   DateTime // last day of the planning window  (e.g. 2025-12-31)
-
-  // ── Status ────────────────────────────────────────────────────────────────
-  is_active  Boolean  @default(true)  // only an active cycle accepts new plan submissions
-  created_at DateTime @default(now()) // when this cycle record was created
-
-  // ── Relations ─────────────────────────────────────────────────────────────
-  plans WorkforcePlan[] // all plans submitted within this cycle
+  id          String          @id @default(uuid())
+  fiscal_year Int
+  name        String
+  is_active   Boolean         @default(true)
+  created_at  DateTime        @default(now())
+  plans       WorkforcePlan[]
 
   @@map("planning_cycles")
 }
 
-
-// -----------------------------------------------------------------------------
-// WorkforcePlan
-// The core entity of the application. A planner creates a plan for a specific
-// department and fiscal year, defines the headcount they need (via PlanPosition
-// rows), and submits it through the multi-stage approval workflow.
-// -----------------------------------------------------------------------------
 model WorkforcePlan {
-  // ── Identity ──────────────────────────────────────────────────────────────
-  id    String @id @default(uuid()) // UUID primary key
-  title String                      // plan name shown in the UI (e.g. "FY2025 Finance Expansion")
-
-  // ── Ownership & scope ─────────────────────────────────────────────────────
-  department_id String         // FK → Department; which department this plan is for
-  fiscal_year   Int            // the year the plan applies to (e.g. 2025)
-  planning_period PlanningPeriod @default(ANNUAL) // ANNUAL or QUARTERLY
-  quarter       Int?           // 1–4; only set when planning_period = QUARTERLY
-
-  // ── Time range ────────────────────────────────────────────────────────────
-  start_date DateTime? // optional start of the planned hiring window
-  end_date   DateTime? // optional end of the planned hiring window
-
-  // ── Content ───────────────────────────────────────────────────────────────
-  justification String? // free-text business case explaining why the headcount is needed
-
-  // ── Workflow state ────────────────────────────────────────────────────────
-  status  PlanStatus @default(DRAFT) // current stage in the approval pipeline
-  version Int        @default(1)     // incremented each time "Save as New Version" is used
-
-  // ── Foreign keys ──────────────────────────────────────────────────────────
-  cycle_id      String? // FK → PlanningCycle; null until the plan is submitted
-  created_by_id String  // FK → User; the planner who owns this plan
-
-  // ── Timestamps ────────────────────────────────────────────────────────────
-  last_saved_at DateTime  @default(now()) // updated every time the plan is saved (used in the UI)
-  submitted_at  DateTime?                 // set when the plan is first submitted for approval
-  created_at    DateTime  @default(now()) // when the plan was first created
-  updated_at    DateTime  @updatedAt      // auto-updated on every write (used for ordering lists)
-
-  // ── Relations ─────────────────────────────────────────────────────────────
-  department    Department       @relation(fields: [department_id], references: [id])
-                                 // loads the Department object alongside the plan
-  cycle         PlanningCycle?   @relation(fields: [cycle_id], references: [id])
-                                 // loads the linked PlanningCycle (null until submitted)
-  created_by    User             @relation(fields: [created_by_id], references: [id])
-                                 // loads the User who created the plan
-
-  positions     PlanPosition[]   // the individual roles requested in this plan
-  attachments   PlanAttachment[] // supporting documents uploaded with this plan
-  versions      PlanVersion[]    // historical snapshots (audit trail of edits)
-  approval_logs ApprovalLog[]    // every review action taken on this plan
+  id              String           @id @default(uuid())
+  title           String
+  department_id   String
+  fiscal_year     Int
+  planning_period PlanningPeriod   @default(ANNUAL)
+  quarter         Int?
+  justification   String?
+  status          PlanStatus       @default(DRAFT)
+  version         Int              @default(1)
+  created_by_id   String
+  last_saved_at   DateTime         @default(now())
+  submitted_at    DateTime?
+  created_at      DateTime         @default(now())
+  updated_at      DateTime         @updatedAt
+  department      Department       @relation(fields: [department_id], references: [id])references: [id])
+  created_by      User             @relation(fields: [created_by_id], references: [id])
+  positions       PlanPosition[]
+  attachments     PlanAttachment[]
+  versions        PlanVersion[]
+  approval_logs   ApprovalLog[]
 
   @@map("workforce_plans")
 }
 
-
-// -----------------------------------------------------------------------------
-// PlanPosition
-// A single role line-item inside a WorkforcePlan.
-// Each row represents one type of position the department wants to hire, with
-// a count, contract type, and priority level.
-// Deleting the parent WorkforcePlan cascades and deletes all its positions.
-// -----------------------------------------------------------------------------
 model PlanPosition {
-  // ── Identity ──────────────────────────────────────────────────────────────
-  id      String @id @default(uuid()) // UUID primary key
-  plan_id String                      // FK → WorkforcePlan (set by the relation below)
-
-  // ── Position details ──────────────────────────────────────────────────────
-  title           String         // role title (e.g. "Senior Financial Analyst")
-  count           Int            @default(1)         // how many people to hire for this role
-  employment_type EmploymentType @default(FULL_TIME) // FULL_TIME, PART_TIME, or CONTRACT
-  priority        Priority       @default(MEDIUM)    // HIGH, MEDIUM, or LOW urgency
-
-  // ── Relation ──────────────────────────────────────────────────────────────
-  plan WorkforcePlan @relation(fields: [plan_id], references: [id], onDelete: Cascade)
-  // onDelete: Cascade — if the parent plan is deleted, this position row is deleted too
+  id              String         @id @default(uuid())
+  plan_id         String
+  title           String
+  count           Int            @default(1)
+  employment_type EmploymentType @default(FULL_TIME)
+  priority        Priority       @default(MEDIUM)
+  plan            WorkforcePlan  @relation(fields: [plan_id], references: [id], onDelete: Cascade)
 
   @@map("plan_positions")
 }
 
-
-// -----------------------------------------------------------------------------
-// PlanVersion
-// An immutable JSON snapshot of a WorkforcePlan saved at a point in time.
-// Created whenever the planner clicks "Save as New Version" or when the plan
-// is first created. Used to show a history of changes and allow rollback.
-// Deleting the parent WorkforcePlan cascades and deletes all its versions.
-// -----------------------------------------------------------------------------
 model PlanVersion {
-  // ── Identity ──────────────────────────────────────────────────────────────
-  id      String @id @default(uuid()) // UUID primary key
-  plan_id String                      // FK → WorkforcePlan
-  version Int                         // the version number at the time of the snapshot (e.g. 1, 2, 3)
-
-  // ── Content ───────────────────────────────────────────────────────────────
-  snapshot Json // complete copy of the plan object (including positions) at this version
-
-  // ── Authorship ────────────────────────────────────────────────────────────
-  created_by_id String   // FK → User; who triggered this version save
-  created_at    DateTime @default(now()) // when this snapshot was taken
-
-  // ── Relations ─────────────────────────────────────────────────────────────
-  plan       WorkforcePlan @relation(fields: [plan_id], references: [id], onDelete: Cascade)
-  created_by User          @relation(fields: [created_by_id], references: [id])
+  id            String        @id @default(uuid())
+  plan_id       String
+  version       Int
+  snapshot      Json
+  created_by_id String
+  created_at    DateTime      @default(now())
+  plan          WorkforcePlan @relation(fields: [plan_id], references: [id], onDelete: Cascade)
+  created_by    User          @relation(fields: [created_by_id], references: [id])
 
   @@map("plan_versions")
 }
 
-
-// -----------------------------------------------------------------------------
-// PlanAttachment
-// Metadata for a file uploaded alongside a workforce plan as a supporting document.
-// The actual file is stored on disk under /backend/uploads/.
-// Deleting the parent WorkforcePlan cascades and deletes the attachment record
-// (the file deletion from disk is handled in the route handler).
-// -----------------------------------------------------------------------------
 model PlanAttachment {
-  // ── Identity ──────────────────────────────────────────────────────────────
-  id      String @id @default(uuid()) // UUID primary key
-  plan_id String                      // FK → WorkforcePlan; which plan this file belongs to
-
-  // ── File metadata ─────────────────────────────────────────────────────────
-  filename String  // original filename as uploaded by the user (e.g. "budget_2025.pdf")
-  filepath String  // absolute path on the server disk where the file is stored
-  mimetype String? // MIME type detected by multer (e.g. "application/pdf"); optional for legacy rows
-  size     Int?    // file size in bytes (e.g. 204800 = 200 KB); optional for legacy rows
-
-  // ── Timestamp ─────────────────────────────────────────────────────────────
-  created_at DateTime @default(now()) // when the file was uploaded
-
-  // ── Relation ──────────────────────────────────────────────────────────────
-  plan WorkforcePlan @relation(fields: [plan_id], references: [id], onDelete: Cascade)
-  // onDelete: Cascade — removes the DB record when the plan is deleted
-  // (the route handler also calls fs.unlinkSync to remove the physical file)
+  id         String        @id @default(uuid())
+  plan_id    String
+  filename   String
+  filepath   String
+  mimetype   String?
+  size       Int?
+  created_at DateTime      @default(now())
+  plan       WorkforcePlan @relation(fields: [plan_id], references: [id], onDelete: Cascade)
 
   @@map("plan_attachments")
 }
 
-
-// -----------------------------------------------------------------------------
-// ApprovalLog
-// An append-only audit trail entry written every time a plan changes status.
-// One row is created for each of these events:
-//   - Plan submitted by the planner          (SUBMITTED)
-//   - Plan withdrawn back to draft           (WITHDRAWN)
-//   - Plan approved by a reviewer            (APPROVE)
-//   - Plan rejected by a reviewer            (REJECT)
-// Rows are never updated or deleted (except by cascade when the plan is deleted).
-// Deleting the parent WorkforcePlan cascades and deletes all its logs.
-// -----------------------------------------------------------------------------
 model ApprovalLog {
-  // ── Identity ──────────────────────────────────────────────────────────────
-  id       String @id @default(uuid()) // UUID primary key
-  plan_id  String                      // FK → WorkforcePlan; which plan this log entry is about
-  actor_id String                      // FK → User; who performed the action
+  id          String        @id @default(uuid())
+  plan_id     String
+  actor_id    String
+  action      String
+  comment     String?
+  from_status PlanStatus?
+  to_status   PlanStatus
+  created_at  DateTime      @default(now())
+  plan        WorkforcePlan @relation(fields: [plan_id], references: [id], onDelete: Cascade)
+  actor       User          @relation(fields: [actor_id], references: [id])
 
-  // ── Event details ─────────────────────────────────────────────────────────
-  action      String      // what happened: "SUBMITTED", "APPROVE", "REJECT", "WITHDRAWN"
-  comment     String?     // optional note; required for REJECT actions (business rule enforced in controller)
-  from_status PlanStatus? // the plan's status before this action (null for the very first submission log)
-  to_status   PlanStatus  // the plan's status after this action
-
-  // ── Timestamp ─────────────────────────────────────────────────────────────
-  created_at DateTime @default(now()) // when this event occurred
-
-  // ── Relations ─────────────────────────────────────────────────────────────
-  plan  WorkforcePlan @relation(fields: [plan_id], references: [id], onDelete: Cascade)
-  actor User          @relation(fields: [actor_id], references: [id])
-  // actor loads the User object so the UI can display who approved/rejected the plan
-
-  @@map("approval_logs") // SQL table name
+  @@map("approval_logs")
 }
