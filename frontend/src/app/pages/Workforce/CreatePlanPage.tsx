@@ -58,8 +58,6 @@ export default function CreatePlanPage() {
     fiscal_year: 2025,
     planning_period: "ANNUAL" as "ANNUAL" | "QUARTERLY",
     quarter: 1,
-    start_date: "",
-    end_date: "",
     justification: "",
   });
 
@@ -117,9 +115,6 @@ export default function CreatePlanPage() {
             fiscal_year: p.fiscal_year,
             planning_period: p.planning_period,
             quarter: p.quarter || 1,
-            // Strip the time portion from ISO date strings for the date inputs
-            start_date: p.start_date?.split("T")[0] || "",
-            end_date: p.end_date?.split("T")[0] || "",
             justification: p.justification || "",
           });
           setPositions(p.positions?.length ? p.positions : [emptyPosition()]);

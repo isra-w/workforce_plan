@@ -9,7 +9,7 @@
  *                  and stored in localStorage.
  *
  * Department     — a business unit with static DB headcount baselines
- *                  (approved_hc, budgeted_hc, current_hc) plus optional live
+ *                  (approved_hc, current_hc) plus optional live
  *                  fields computed by the dashboard endpoint from real plan data
  *                  (requested_hc, approved_hc_plans, pending_hc, plan_count,
  *                  latest_status).
@@ -55,7 +55,6 @@ export interface Department {
   name: string;
   code?: string;
   approved_hc: number;
-  budgeted_hc: number;
   current_hc: number;
   // Live computed from real plan data
   requested_hc?: number;
@@ -80,8 +79,6 @@ export interface WorkforcePlan {
   fiscal_year: number;
   planning_period: "ANNUAL" | "QUARTERLY";
   quarter?: number;
-  start_date?: string;
-  end_date?: string;
   justification?: string;
   status: string;
   version: number;
@@ -143,7 +140,6 @@ export interface DashboardData {
     pendingRequests: number;
     openVacancies: number;
     criticalRoles: number;
-    estBudgetUSD: number;
   };
   departments: Department[];
   activeRequests: WorkforcePlan[];

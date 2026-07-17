@@ -32,13 +32,6 @@ import { useAuth } from "../../context/AuthContext";
 
 /* ── Helpers ──────────────────────────────────────────────────────────── */
 
-function formatBudget(usd: number): string {
-  if (usd === 0) return "—";
-  if (usd >= 1_000_000) return `$${(usd / 1_000_000).toFixed(1)}M`;
-  if (usd >= 1_000) return `$${Math.round(usd / 1_000)}k`;
-  return `$${usd}`;
-}
-
 function KpiCard({
   title,
   value,
@@ -170,7 +163,7 @@ export default function WorkforceDashboard() {
           value={kpis?.pendingRequests ?? 0}
           subtitle={
             kpis?.pendingRequests
-              ? `Est. budget: ${formatBudget(kpis?.estBudgetUSD ?? 0)}`
+              ? `${kpis.pendingRequests} in-flight request${kpis.pendingRequests !== 1 ? "s" : ""}`
               : "No in-flight requests"
           }
           icon={<FiClock size={20} />}

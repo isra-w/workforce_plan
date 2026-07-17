@@ -1,27 +1,16 @@
 /**
  * controllers/workforcePlanController.ts
  *
- * New privilege model:
+ * Privilege model:
  *   WORKFORCE_PLANNER  creates, edits, submits, and deletes DRAFT/SUBMITTED plans.
  *   HR                 sees only SUBMITTED plans; can approve (→ HR_APPROVED) or reject (→ REJECTED).
- *   CEO                sees only HR_APPROVED plans (job postings); can approve (→ APPROVED) or reject (→ REJECTED).
+ *   CEO                sees only HR_APPROVED plans; can approve (→ APPROVED) or reject (→ REJECTED).
  *   CANDIDATE          read-only access; no write operations.
  *
  * Approval flow:
  *   DRAFT → SUBMITTED → HR_APPROVED → APPROVED
  *                ↘           ↘
  *             REJECTED     REJECTED
- *
- * getPlans      — role-scoped list:
- *                   HR   → only SUBMITTED plans
- *                   CEO  → only HR_APPROVED plans ("job postings")
- *                   else → all plans (planner sees their own; admin sees all)
- *
- * getDashboard  — role-scoped KPIs and plan lists (same scoping as getPlans).
- *
- * reviewPlan    — HR: SUBMITTED → HR_APPROVED or REJECTED
- *                 CEO: HR_APPROVED → APPROVED or REJECTED
- *                 Rejection always requires a comment.
  */
 import { Response, NextFunction } from "express";
 import { PlanStatus, PlanningPeriod, Prisma } from "@prisma/client";
@@ -29,9 +18,6 @@ import { prisma } from "src/utils/prisma";
 import { AuthRequest } from "src/middleware/authMiddleware";
 
 // Consistent eager-load used by every plan query.
-// approval_logs is intentionally kept simple here — no status-typed fields
-// are validated on the Prisma client side when using raw include, but we cast
-// the result to avoid TS errors from old enum values still present in the DB.
 const planInclude = {
   department: true,
   created_by: {
@@ -60,10 +46,6 @@ function buildSnapshot(plan: Record<string, unknown>) {
 
 // ---------------------------------------------------------------------------
 // getDashboard
-// Returns KPIs and plan lists, scoped to the caller's role:
-//   HR   → pendingReview = SUBMITTED plans awaiting HR action
-//   CEO  → pendingReview = HR_APPROVED plans awaiting CEO decision
-//   else → standard planner/admin view
 // ---------------------------------------------------------------------------
 export const getDashboard = async (
   req: AuthRequest,
@@ -76,21 +58,12 @@ export const getDashboard = async (
     const [departments, allPlans, activeRequests] = await Promise.all([
       prisma.department.findMany({ orderBy: { name: "asc" } }),
 
-      // ALL non-draft plans — shown in the overview table regardless of role.
-      // Includes SUBMITTED, HR_APPROVED, APPROVED, and REJECTED so the
-      // dashboard always shows the full history of every plan.
       prisma.workforcePlan.findMany({
         where: { status: { notIn: ["DRAFT"] } },
         include: { department: true, positions: true },
         orderBy: { updated_at: "desc" },
       }),
 
-      // Active (in-flight) requests — scoped by role for the sidebar widget:
-      //   HR   → SUBMITTED only      (plans awaiting HR decision)
-      //   CEO  → HR_APPROVED only    (plans awaiting CEO decision)
-      //   else → SUBMITTED + HR_APPROVED  (all in-flight, for planner view)
-      // APPROVED and REJECTED are deliberately excluded here — they are
-      // finalised and belong in the main table, not the "active" sidebar.
       prisma.workforcePlan.findMany({
         where: {
           status: {
@@ -157,11 +130,7 @@ export const getDashboard = async (
         0,
       );
     const totalCurrentStaff = departments.reduce((s, d) => s + d.current_hc, 0);
-    const totalBudgeted = departments.reduce(
-      (s, d) => s + (d.budgeted_hc || d.approved_hc),
-      0,
-    );
-    const capacityBase = totalApprovedHc || totalBudgeted;
+    const capacityBase = totalApprovedHc || departments.reduce((s, d) => s + d.approved_hc, 0);
     const capacityPercent = capacityBase
       ? Math.round((totalCurrentStaff / capacityBase) * 1000) / 10
       : 0;
@@ -178,20 +147,6 @@ export const getDashboard = async (
           .reduce((ps, pos) => ps + pos.count, 0),
       0,
     );
-    const estBudgetUSD = activeRequests.reduce(
-      (s, p) =>
-        s +
-        p.positions.reduce((ps, pos) => {
-          const rate =
-            pos.employment_type === "FULL_TIME"
-              ? 80000
-              : pos.employment_type === "PART_TIME"
-                ? 40000
-                : 60000;
-          return ps + pos.count * rate;
-        }, 0),
-      0,
-    );
 
     res.status(200).json({
       status: "success",
@@ -203,7 +158,6 @@ export const getDashboard = async (
           pendingRequests,
           openVacancies,
           criticalRoles,
-          estBudgetUSD,
         },
         departments: departmentsWithStats,
         activeRequests,
@@ -217,12 +171,6 @@ export const getDashboard = async (
 
 // ---------------------------------------------------------------------------
 // getPlans
-// Role-scoped list:
-//   HR          → only SUBMITTED plans (awaiting HR decision)
-//   CEO         → only HR_APPROVED plans (awaiting CEO decision)
-//   PLANNER     → ALL plans, every status — so they can see their DRAFT,
-//                 SUBMITTED, HR_APPROVED, APPROVED, and REJECTED history.
-//   CANDIDATE   → ALL plans (read-only; no write controls on the frontend)
 // ---------------------------------------------------------------------------
 export const getPlans = async (
   req: AuthRequest,
@@ -232,17 +180,12 @@ export const getPlans = async (
   try {
     const role = req.user!.role;
 
-    // Build the where clause based on role
     let where: Prisma.WorkforcePlanWhereInput = {};
-
     if (role === "HR") {
-      // HR only sees plans waiting for their review
       where.status = "SUBMITTED";
     } else if (role === "CEO") {
-      // CEO only sees plans HR has already approved
       where.status = "HR_APPROVED";
     }
-    // WORKFORCE_PLANNER and CANDIDATE: no status filter — return everything
 
     const plans = await prisma.workforcePlan.findMany({
       where,
@@ -257,7 +200,7 @@ export const getPlans = async (
 };
 
 // ---------------------------------------------------------------------------
-// getPlan — single plan detail (any role, own visibility rules enforced above)
+// getPlan
 // ---------------------------------------------------------------------------
 export const getPlan = async (
   req: AuthRequest,
@@ -270,9 +213,7 @@ export const getPlan = async (
       include: planInclude,
     });
     if (!plan) {
-      return res
-        .status(404)
-        .json({ status: "fail", message: "Plan not found" });
+      return res.status(404).json({ status: "fail", message: "Plan not found" });
     }
     res.status(200).json({ status: "success", data: { plan } });
   } catch (error) {
@@ -281,7 +222,7 @@ export const getPlan = async (
 };
 
 // ---------------------------------------------------------------------------
-// createPlan — WORKFORCE_PLANNER only (enforced in routes)
+// createPlan — WORKFORCE_PLANNER only
 // ---------------------------------------------------------------------------
 export const createPlan = async (
   req: AuthRequest,
@@ -295,31 +236,15 @@ export const createPlan = async (
       fiscal_year,
       planning_period,
       quarter,
-      start_date,
-      end_date,
       justification,
       positions,
     } = req.body;
 
     if (!title || !department_id || !fiscal_year) {
-      return res
-        .status(400)
-        .json({
-          status: "fail",
-          message: "Title, department, and planning year are required",
-        });
-    }
-
-    const activeCycle = await prisma.planningCycle.findFirst({
-      where: { is_active: true },
-    });
-    if (!activeCycle) {
-      return res
-        .status(400)
-        .json({
-          status: "fail",
-          message: "No active planning cycle available",
-        });
+      return res.status(400).json({
+        status: "fail",
+        message: "Title, department, and planning year are required",
+      });
     }
 
     const plan = await prisma.workforcePlan.create({
@@ -329,12 +254,9 @@ export const createPlan = async (
         fiscal_year: Number(fiscal_year),
         planning_period: (planning_period as PlanningPeriod) || "ANNUAL",
         quarter: quarter ? Number(quarter) : null,
-        start_date: start_date ? new Date(start_date) : null,
-        end_date: end_date ? new Date(end_date) : null,
         justification,
         status: "DRAFT",
         version: 1,
-        cycle_id: activeCycle.id,
         created_by_id: req.user!.id,
         positions: positions?.length
           ? {
@@ -367,14 +289,6 @@ export const createPlan = async (
 
 // ---------------------------------------------------------------------------
 // updatePlan — WORKFORCE_PLANNER only; DRAFT/SUBMITTED/REJECTED only
-//
-// Version increment rule (simple):
-//   Only increment when the plan is currently REJECTED.
-//   This means: "the planner made a revision after the plan was rejected."
-//
-//   DRAFT edits   → no increment (just saving work in progress)
-//   SUBMITTED edit → resets to DRAFT, no increment (withdrawal, not a revision)
-//   REJECTED edit  → increment +1 and save a snapshot (a real revision)
 // ---------------------------------------------------------------------------
 export const updatePlan = async (
   req: AuthRequest,
@@ -386,17 +300,14 @@ export const updatePlan = async (
       where: { id: req.params.id },
       include: { positions: true },
     });
-    if (!existing)
-      return res
-        .status(404)
-        .json({ status: "fail", message: "Plan not found" });
+    if (!existing) {
+      return res.status(404).json({ status: "fail", message: "Plan not found" });
+    }
     if (!["DRAFT", "SUBMITTED", "REJECTED"].includes(existing.status)) {
-      return res
-        .status(400)
-        .json({
-          status: "fail",
-          message: "Only draft, submitted, or rejected plans can be edited",
-        });
+      return res.status(400).json({
+        status: "fail",
+        message: "Only draft, submitted, or rejected plans can be edited",
+      });
     }
 
     const {
@@ -405,27 +316,23 @@ export const updatePlan = async (
       fiscal_year,
       planning_period,
       quarter,
-      start_date,
-      end_date,
       justification,
       positions,
       save_as_new_version,
     } = req.body;
 
-    // Only bump version when editing a REJECTED plan — that is a genuine revision.
-    // DRAFT saves and SUBMITTED withdrawals do not count as new versions.
     const isRevision = existing.status === "REJECTED";
     const newVersion =
       isRevision || save_as_new_version === true
         ? existing.version + 1
         : existing.version;
 
-    // A SUBMITTED plan that is edited is pulled back to DRAFT
     const newStatus =
       existing.status === "SUBMITTED" ? "DRAFT" : existing.status;
 
-    if (positions)
+    if (positions) {
       await prisma.planPosition.deleteMany({ where: { plan_id: existing.id } });
+    }
 
     const plan = await prisma.workforcePlan.update({
       where: { id: existing.id },
@@ -435,8 +342,6 @@ export const updatePlan = async (
         fiscal_year: fiscal_year ? Number(fiscal_year) : existing.fiscal_year,
         planning_period: planning_period ?? existing.planning_period,
         quarter: quarter !== undefined ? Number(quarter) : existing.quarter,
-        start_date: start_date ? new Date(start_date) : existing.start_date,
-        end_date: end_date ? new Date(end_date) : existing.end_date,
         justification: justification ?? existing.justification,
         version: newVersion,
         status: newStatus,
@@ -455,7 +360,6 @@ export const updatePlan = async (
       include: planInclude,
     });
 
-    // Save a snapshot only when the version actually changed
     if (newVersion !== existing.version) {
       await prisma.planVersion.create({
         data: {
@@ -467,7 +371,6 @@ export const updatePlan = async (
       });
     }
 
-    // Audit log for significant status changes
     if (existing.status === "SUBMITTED") {
       await prisma.approvalLog.create({
         data: {
@@ -500,10 +403,6 @@ export const updatePlan = async (
 
 // ---------------------------------------------------------------------------
 // submitPlan — WORKFORCE_PLANNER only; DRAFT/REJECTED → SUBMITTED
-//
-// Version rule: submission does NOT increment the version.
-// The version only increments when the planner edits a REJECTED plan.
-// Submitting is just a status change, not a content revision.
 // ---------------------------------------------------------------------------
 export const submitPlan = async (
   req: AuthRequest,
@@ -515,48 +414,24 @@ export const submitPlan = async (
       where: { id: req.params.id },
       include: { positions: true },
     });
-    if (!existing)
-      return res
-        .status(404)
-        .json({ status: "fail", message: "Plan not found" });
+    if (!existing) {
+      return res.status(404).json({ status: "fail", message: "Plan not found" });
+    }
     if (!["DRAFT", "REJECTED"].includes(existing.status)) {
-      return res
-        .status(400)
-        .json({ status: "fail", message: "Plan has already been submitted" });
+      return res.status(400).json({ status: "fail", message: "Plan has already been submitted" });
     }
-    if (
-      !existing.title ||
-      !existing.justification ||
-      existing.positions.length === 0
-    ) {
-      return res
-        .status(400)
-        .json({
-          status: "fail",
-          message:
-            "Title, justification, and at least one position are required before submission",
-        });
-    }
-    const activeCycle = await prisma.planningCycle.findFirst({
-      where: { is_active: true },
-    });
-    if (!activeCycle) {
-      return res
-        .status(400)
-        .json({
-          status: "fail",
-          message: "Planning cycle is closed. Submissions are not allowed.",
-        });
+    if (!existing.title || !existing.justification || existing.positions.length === 0) {
+      return res.status(400).json({
+        status: "fail",
+        message: "Title, justification, and at least one position are required before submission",
+      });
     }
 
-    // Status changes to SUBMITTED — version stays the same
     const plan = await prisma.workforcePlan.update({
       where: { id: existing.id },
       data: {
         status: "SUBMITTED",
         submitted_at: new Date(),
-        cycle_id: activeCycle.id,
-        // version intentionally not changed — submission is not a revision
       },
       include: planInclude,
     });
@@ -582,18 +457,7 @@ export const submitPlan = async (
 };
 
 // ---------------------------------------------------------------------------
-// reviewPlan
-//
-// New privilege model:
-//   HR  — can review SUBMITTED plans only
-//           approve → HR_APPROVED   (plan becomes a "job posting" for CEO review)
-//           reject  → REJECTED      (requires comment; planner can edit and resubmit)
-//
-//   CEO — can review HR_APPROVED plans only
-//           approve → APPROVED      (final sign-off; headcount is authorised)
-//           reject  → REJECTED      (requires comment)
-//
-// Any other role gets a 403 from requireRoles in the router before reaching here.
+// reviewPlan — HR and CEO only
 // ---------------------------------------------------------------------------
 export const reviewPlan = async (
   req: AuthRequest,
@@ -605,20 +469,17 @@ export const reviewPlan = async (
     const existing = await prisma.workforcePlan.findUnique({
       where: { id: req.params.id },
     });
-    if (!existing)
-      return res
-        .status(404)
-        .json({ status: "fail", message: "Plan not found" });
+    if (!existing) {
+      return res.status(404).json({ status: "fail", message: "Plan not found" });
+    }
 
     const role = req.user!.role;
     let nextStatus: PlanStatus | null = null;
 
     if (action === "approve") {
       if (role === "HR" && existing.status === "SUBMITTED") {
-        // HR approves a submitted workforce plan → becomes a job posting for CEO
         nextStatus = "HR_APPROVED";
       } else if (role === "CEO" && existing.status === "HR_APPROVED") {
-        // CEO gives final approval on the job posting
         nextStatus = "APPROVED";
       }
     } else if (action === "reject") {
@@ -630,21 +491,16 @@ export const reviewPlan = async (
     }
 
     if (!nextStatus) {
-      return res
-        .status(400)
-        .json({
-          status: "fail",
-          message:
-            "Invalid review action for your role and the plan's current status",
-        });
+      return res.status(400).json({
+        status: "fail",
+        message: "Invalid review action for your role and the plan's current status",
+      });
     }
     if (action === "reject" && !comment) {
-      return res
-        .status(400)
-        .json({
-          status: "fail",
-          message: "A comment is required when rejecting a plan",
-        });
+      return res.status(400).json({
+        status: "fail",
+        message: "A comment is required when rejecting a plan",
+      });
     }
 
     const plan = await prisma.workforcePlan.update({
@@ -652,6 +508,7 @@ export const reviewPlan = async (
       data: { status: nextStatus },
       include: planInclude,
     });
+
     await prisma.approvalLog.create({
       data: {
         plan_id: plan.id,
@@ -676,9 +533,6 @@ export const reviewPlan = async (
 
 // ---------------------------------------------------------------------------
 // getVacancies
-// Returns every APPROVED plan with its positions and department.
-// Accessible to all verified roles — used by the Vacancies page to display
-// open headcount that has been fully signed off by the CEO.
 // ---------------------------------------------------------------------------
 export const getVacancies = async (
   _req: AuthRequest,
@@ -696,17 +550,13 @@ export const getVacancies = async (
       orderBy: { updated_at: "desc" },
     });
 
-    // Flatten each plan's positions into individual vacancy records so the
-    // frontend can display one card / row per position rather than per plan.
     const vacancies = plans.flatMap((plan) =>
       (plan.positions ?? []).map((pos) => ({
-        // Position fields
         id: pos.id,
         title: pos.title,
         count: pos.count,
         employment_type: pos.employment_type,
         priority: pos.priority,
-        // Parent plan context
         plan_id: plan.id,
         plan_title: plan.title,
         fiscal_year: plan.fiscal_year,
@@ -764,17 +614,14 @@ export const deletePlan = async (
     const existing = await prisma.workforcePlan.findUnique({
       where: { id: req.params.id },
     });
-    if (!existing)
-      return res
-        .status(404)
-        .json({ status: "fail", message: "Plan not found" });
+    if (!existing) {
+      return res.status(404).json({ status: "fail", message: "Plan not found" });
+    }
     if (!["DRAFT", "SUBMITTED"].includes(existing.status)) {
-      return res
-        .status(400)
-        .json({
-          status: "fail",
-          message: "Only draft or submitted plans can be deleted",
-        });
+      return res.status(400).json({
+        status: "fail",
+        message: "Only draft or submitted plans can be deleted",
+      });
     }
     await prisma.workforcePlan.delete({ where: { id: existing.id } });
     res.status(200).json({ status: "success", message: "Plan deleted" });

@@ -169,22 +169,6 @@ export default function JobPostingDetailPage() {
                 <span className="jp-info-label">Total Headcount</span>
                 <span className="jp-info-value jp-info-value-bold">{totalHc}</span>
               </div>
-              {plan.start_date && (
-                <div className="jp-info-item">
-                  <span className="jp-info-label">Start Date</span>
-                  <span className="jp-info-value">
-                    {new Date(plan.start_date).toLocaleDateString()}
-                  </span>
-                </div>
-              )}
-              {plan.end_date && (
-                <div className="jp-info-item">
-                  <span className="jp-info-label">End Date</span>
-                  <span className="jp-info-value">
-                    {new Date(plan.end_date).toLocaleDateString()}
-                  </span>
-                </div>
-              )}
             </div>
           </section>
 
