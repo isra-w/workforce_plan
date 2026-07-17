@@ -39,7 +39,6 @@ export default function PlanningListPage() {
   const [activeTab, setActiveTab] = useState("ALL");
 
   // HR and CEO have dedicated review pages
-  if (user?.role === "HR") return <Navigate to="/review/hr" replace />;
   if (user?.role === "CEO") return <Navigate to="/review/ceo" replace />;
 
   const isPlanner = user?.role === "WORKFORCE_PLANNER";

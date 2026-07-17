@@ -29,7 +29,14 @@
  *   sidebarOpen      boolean     — current sidebar state; used to choose the icon
  *                                  and aria-label on the toggle button.
  */
-import { FiBell, FiHelpCircle, FiSettings, FiSearch, FiMenu, FiX } from "react-icons/fi";
+import {
+  FiBell,
+  FiHelpCircle,
+  FiSettings,
+  FiSearch,
+  FiMenu,
+  FiX,
+} from "react-icons/fi";
 import { useAuth } from "../../context/AuthContext";
 
 interface HeaderProps {
@@ -92,7 +99,7 @@ export default function Header({ onToggleSidebar, sidebarOpen }: HeaderProps) {
 
           {/* Avatar circle — shows the first letter of the user's name */}
           <div className="header-profile-avatar">
-            {user?.full_name?.charAt(0).toUpperCase() || "U"}
+            {user?.full_name?.charAt(0)?.toUpperCase() || "U"}
           </div>
 
           {/* Logout clears the session and redirects to /login via AuthContext */}

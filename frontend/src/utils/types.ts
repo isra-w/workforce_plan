@@ -33,13 +33,19 @@
  *                  containing KPI metrics, department list, active requests, and
  *                  all non-draft plans.
  */
-export type UserRole = "WORKFORCE_PLANNER" | "HR" | "CEO" | "CANDIDATE";
+export type UserRole =
+  | "WORKFORCE_PLANNER"
+  | "HR"
+  | "CEO"
+  | "CANDIDATE"
+  | "HR_ADMIN";
 
 export interface User {
   id: string;
   email: string;
   full_name: string;
   role: UserRole;
+  permissions?: string[] | null;
   title?: string;
   is_verified: boolean;
 }
@@ -142,4 +148,26 @@ export interface DashboardData {
   departments: Department[];
   activeRequests: WorkforcePlan[];
   allPlans: WorkforcePlan[];
+}
+
+/**
+ * Vacancy
+ *
+ * A flattened record returned by GET /workforce/vacancies.
+ * Represents one position row from a CEO-APPROVED workforce plan, enriched
+ * with the parent plan's context (title, fiscal year, period, department).
+ */
+export interface Vacancy {
+  id?: string;
+  title: string;
+  count: number;
+  employment_type: "FULL_TIME" | "PART_TIME" | "CONTRACT";
+  priority: "HIGH" | "MEDIUM" | "LOW";
+  plan_id: string;
+  plan_title: string;
+  fiscal_year: number;
+  planning_period: "ANNUAL" | "QUARTERLY";
+  quarter?: number | null;
+  department?: Department;
+  created_by?: { full_name: string; email: string };
 }

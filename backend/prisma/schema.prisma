@@ -12,6 +12,7 @@ enum UserRole {
   HR
   CEO
   CANDIDATE
+  HR_ADMIN
 }
 
 enum PlanningPeriod {
@@ -46,6 +47,7 @@ model User {
   full_name          String
   role               UserRole        @default(WORKFORCE_PLANNER)
   title              String?
+  permissions        String[]        @default([])
   is_verified        Boolean         @default(false)
   verification_token String?
   is_active          Boolean         @default(true)
@@ -58,6 +60,15 @@ model User {
   @@map("users")
 }
 
+model RolePermission {
+  role        UserRole @id
+  permissions String[] @default([])
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  @@map("role_permissions")
+}
+
 model Department {
   id          String          @id @default(uuid())
   name        String          @unique
@@ -68,17 +79,6 @@ model Department {
   plans       WorkforcePlan[]
 
   @@map("departments")
-}
-
-model PlanningCycle {
-  id          String          @id @default(uuid())
-  fiscal_year Int
-  name        String
-  is_active   Boolean         @default(true)
-  created_at  DateTime        @default(now())
-  plans       WorkforcePlan[]
-
-  @@map("planning_cycles")
 }
 
 model WorkforcePlan {
@@ -96,7 +96,7 @@ model WorkforcePlan {
   submitted_at    DateTime?
   created_at      DateTime         @default(now())
   updated_at      DateTime         @updatedAt
-  department      Department       @relation(fields: [department_id], references: [id])references: [id])
+  department      Department       @relation(fields: [department_id], references: [id])
   created_by      User             @relation(fields: [created_by_id], references: [id])
   positions       PlanPosition[]
   attachments     PlanAttachment[]

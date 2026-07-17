@@ -21,7 +21,8 @@
  * Identical card-level UX pattern to HRReviewPage for consistency.
  */
 import { useEffect, useState } from "react";
-import { FiCheckCircle, FiXCircle, FiFileText, FiChevronDown, FiChevronUp } from "react-icons/fi";
+import { Link } from "react-router-dom";
+import { FiCheckCircle, FiXCircle, FiFileText, FiChevronDown, FiChevronUp, FiEye } from "react-icons/fi";
 import toast from "react-hot-toast";
 import StatusBadge from "../../components/common/StatusBadge";
 import { workforceService } from "../../services/workforceService";
@@ -254,6 +255,14 @@ export default function CEOReviewPage() {
                   </div>
                 ) : (
                   <div className="review-decision-btns">
+                    {/* View — opens the full job posting detail page */}
+                    <Link
+                      to={`/review/ceo/${plan.id}`}
+                      className="review-btn review-btn-view"
+                    >
+                      <FiEye size={15} />
+                      View
+                    </Link>
                     <button
                       className="review-btn review-btn-reject-init"
                       onClick={() => patch(plan.id, { showRejectBox: true })}

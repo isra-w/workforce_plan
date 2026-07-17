@@ -40,6 +40,7 @@ import { useAuth } from "../../context/AuthContext";
 const ROLES = [
   { value: "WORKFORCE_PLANNER", label: "Workforce Planner" },
   { value: "HR", label: "Human Resource (HR)" },
+  { value: "HR_ADMIN", label: "HR Admin" },
   { value: "CEO", label: "CEO" },
   { value: "CANDIDATE", label: "Candidate" },
 ];
@@ -65,7 +66,7 @@ export default function SignupForm() {
 
   /** Generic change handler — updates the matching field in the form object */
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
   ) => {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
@@ -122,7 +123,9 @@ export default function SignupForm() {
 
       <div className="auth-header">
         <h2 className="auth-title">Create your account</h2>
-        <p className="auth-description">Join Recruitment and start your application today.</p>
+        <p className="auth-description">
+          Join Recruitment and start your application today.
+        </p>
       </div>
 
       {step === 1 ? (

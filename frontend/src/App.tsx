@@ -2,7 +2,7 @@
  * App.tsx
  *
  * Root component. Wires together:
- *   BrowserRouter → AuthProvider → Toaster → RoleAwareRoutes
+ *   BrowserRouter → AuthProvider → Toaster → AppRouter
  *
  * Route map by role:
  *
@@ -14,18 +14,20 @@
  *     /workforce/planning   → PlanningListPage
  *     /workforce/plans/new  → CreatePlanPage
  *     /workforce/plans/:id  → CreatePlanPage
- *     /workforce/*          → PlaceholderPage
- *     /settings             → PlaceholderPage
+ *     /workforce/vacancies  → VacanciesPage
+ *     /workforce/candidates → PlaceholderPage
+ *     /workforce/interviews → PlaceholderPage
+ *     /workforce/offers     → PlaceholderPage
+ *     /workforce/analytics  → PlaceholderPage
  *
  *   HR (protected + verified):
  *     /workforce            → WorkforceDashboard
  *     /review/hr            → HRReviewPage  (SUBMITTED plans)
- *     (any /workforce/plans/* redirects to /review/hr)
  *
  *   CEO (protected + verified):
  *     /workforce            → WorkforceDashboard
  *     /review/ceo           → CEOReviewPage (HR_APPROVED plans)
- *     (any /workforce/plans/* redirects to /review/ceo)
+ *     /review/ceo/:id       → JobPostingDetailPage
  *
  *   CANDIDATE (protected + verified):
  *     /workforce            → WorkforceDashboard
@@ -35,7 +37,13 @@
  *     /settings             → PlaceholderPage
  *     unknown path          → redirect /workforce
  */
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import {
+  createBrowserRouter,
+  createRoutesFromElements,
+  Navigate,
+  Route,
+  RouterProvider,
+} from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 import { AuthProvider, useAuth } from "./app/context/AuthContext";
 import ProtectedRoute from "./app/routes/ProtectedRoute";
@@ -48,7 +56,12 @@ import PlanningListPage from "./app/pages/Workforce/PlanningListPage";
 import CreatePlanPage from "./app/pages/Workforce/CreatePlanPage";
 import HRReviewPage from "./app/pages/Review/HRReviewPage";
 import CEOReviewPage from "./app/pages/Review/CEOReviewPage";
+import JobPostingDetailPage from "./app/pages/Review/JobPostingDetailPage";
+import RoleManagementPage from "./app/pages/Review/RoleManagementPage";
+import VacanciesPage from "./app/pages/Workforce/VacanciesPage";
+import { hasPermission, PermissionKey } from "./app/utils/permissions";
 
+/** Placeholder for routes that are linked in the sidebar but not yet built */
 function PlaceholderPage({ title }: { title: string }) {
   return (
     <div className="placeholder-page">
@@ -60,90 +73,168 @@ function PlaceholderPage({ title }: { title: string }) {
   );
 }
 
-function RoleAwareRoutes() {
+/**
+ * Guards a single route by permission key.
+ * Rendered at route-time (after auth has loaded), so user is always available.
+ * Redirects to /workforce if the user lacks the required permission.
+ */
+function PermissionRoute({
+  permission,
+  children,
+}: {
+  permission: PermissionKey;
+  children: React.ReactNode;
+}) {
   const { user } = useAuth();
-  const role = user?.role;
+  if (!user || !hasPermission(user.permissions, permission, user.role)) {
+    return <Navigate to="/workforce" replace />;
+  }
+  return <>{children}</>;
+}
 
-  const isPlanner   = role === "WORKFORCE_PLANNER";
-  const isHR        = role === "HR";
-  const isCEO       = role === "CEO";
-  const isCandidate = role === "CANDIDATE";
-
-  return (
-    <Routes>
-      {/* ── Public ── */}
-      <Route path="/login"        element={<LoginForm />} />
-      <Route path="/signup"       element={<SignupForm />} />
+/**
+ * The router is created ONCE, outside any component, so it never changes
+ * identity and React Router never unmounts/remounts the provider.
+ * Permission enforcement is delegated to PermissionRoute wrappers that
+ * run at render time (after AuthContext has resolved).
+ */
+const router = createBrowserRouter(
+  createRoutesFromElements(
+    <>
+      {/* Public routes */}
+      <Route path="/login" element={<LoginForm />} />
+      <Route path="/signup" element={<SignupForm />} />
       <Route path="/verify-email" element={<VerifyEmailPage />} />
 
-      {/* ── Protected ── */}
+      {/* Protected routes – ProtectedRoute handles loading + auth checks */}
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>
+          <Route
+            path="/workforce"
+            element={
+              <PermissionRoute permission="VIEW_DASHBOARD">
+                <WorkforceDashboard />
+              </PermissionRoute>
+            }
+          />
 
-          {/* Dashboard — visible to all roles */}
-          <Route path="/workforce" element={<WorkforceDashboard />} />
+          <Route
+            path="/workforce/planning"
+            element={
+              <PermissionRoute permission="MANAGE_WORKFORCE_PLANS">
+                <PlanningListPage />
+              </PermissionRoute>
+            }
+          />
+          <Route
+            path="/workforce/plans/new"
+            element={
+              <PermissionRoute permission="MANAGE_WORKFORCE_PLANS">
+                <CreatePlanPage />
+              </PermissionRoute>
+            }
+          />
+          <Route
+            path="/workforce/plans/:id"
+            element={
+              <PermissionRoute permission="MANAGE_WORKFORCE_PLANS">
+                <CreatePlanPage />
+              </PermissionRoute>
+            }
+          />
 
-          {/* ── HR role ── */}
-          {isHR && (
-            <>
-              {/* HR's primary working page */}
-              <Route path="/review/hr" element={<HRReviewPage />} />
-              {/* Redirect any attempt to reach planner pages to the HR queue */}
-              <Route path="/workforce/planning"  element={<Navigate to="/review/hr" replace />} />
-              <Route path="/workforce/plans/*"   element={<Navigate to="/review/hr" replace />} />
-            </>
-          )}
+          <Route
+            path="/workforce/vacancies"
+            element={
+              <PermissionRoute permission="VIEW_VACANCIES">
+                <VacanciesPage />
+              </PermissionRoute>
+            }
+          />
+          <Route
+            path="/workforce/candidates"
+            element={
+              <PermissionRoute permission="VIEW_CANDIDATES">
+                <PlaceholderPage title="Candidates" />
+              </PermissionRoute>
+            }
+          />
+          <Route
+            path="/workforce/interviews"
+            element={
+              <PermissionRoute permission="VIEW_INTERVIEWS">
+                <PlaceholderPage title="Interviews" />
+              </PermissionRoute>
+            }
+          />
+          <Route
+            path="/workforce/offers"
+            element={
+              <PermissionRoute permission="VIEW_OFFERS">
+                <PlaceholderPage title="Offers" />
+              </PermissionRoute>
+            }
+          />
+          <Route
+            path="/workforce/analytics"
+            element={
+              <PermissionRoute permission="VIEW_ANALYTICS">
+                <PlaceholderPage title="Analytics" />
+              </PermissionRoute>
+            }
+          />
 
-          {/* ── CEO role ── */}
-          {isCEO && (
-            <>
-              {/* CEO's primary working page */}
-              <Route path="/review/ceo" element={<CEOReviewPage />} />
-              {/* Redirect any attempt to reach planner pages to the CEO queue */}
-              <Route path="/workforce/planning"  element={<Navigate to="/review/ceo" replace />} />
-              <Route path="/workforce/plans/*"   element={<Navigate to="/review/ceo" replace />} />
-            </>
-          )}
+          <Route
+            path="/review/hr"
+            element={
+              <PermissionRoute permission="VIEW_HR_REVIEW">
+                <HRReviewPage />
+              </PermissionRoute>
+            }
+          />
+          <Route
+            path="/review/ceo"
+            element={
+              <PermissionRoute permission="VIEW_CEO_REVIEW">
+                <CEOReviewPage />
+              </PermissionRoute>
+            }
+          />
+          <Route
+            path="/review/ceo/:id"
+            element={
+              <PermissionRoute permission="VIEW_CEO_REVIEW">
+                <JobPostingDetailPage />
+              </PermissionRoute>
+            }
+          />
 
-          {/* ── WORKFORCE_PLANNER role ── */}
-          {isPlanner && (
-            <>
-              <Route path="/workforce/planning"   element={<PlanningListPage />} />
-              <Route path="/workforce/plans/new"  element={<CreatePlanPage />} />
-              <Route path="/workforce/plans/:id"  element={<CreatePlanPage />} />
-              <Route path="/workforce/vacancies"  element={<PlaceholderPage title="Vacancies" />} />
-              <Route path="/workforce/candidates" element={<PlaceholderPage title="Candidates" />} />
-              <Route path="/workforce/interviews" element={<PlaceholderPage title="Interviews" />} />
-              <Route path="/workforce/offers"     element={<PlaceholderPage title="Offers" />} />
-              <Route path="/workforce/analytics"  element={<PlaceholderPage title="Analytics" />} />
-            </>
-          )}
-
-          {/* ── CANDIDATE role ── */}
-          {isCandidate && (
-            <Route path="/workforce/candidates" element={<PlaceholderPage title="Candidates" />} />
-          )}
-
-          {/* ── Shared routes (all roles) ── */}
-          <Route path="/settings" element={<PlaceholderPage title="Settings" />} />
-
+          <Route
+            path="/settings"
+            element={<PlaceholderPage title="Settings" />}
+          />
+          <Route
+            path="/settings/roles"
+            element={
+              <PermissionRoute permission="MANAGE_ROLES">
+                <RoleManagementPage />
+              </PermissionRoute>
+            }
+          />
         </Route>
       </Route>
 
-      {/* ── Fallback ── */}
       <Route path="/" element={<Navigate to="/workforce" replace />} />
       <Route path="*" element={<Navigate to="/workforce" replace />} />
-    </Routes>
-  );
-}
+    </>,
+  ),
+);
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <Toaster position="top-right" />
-        <RoleAwareRoutes />
-      </AuthProvider>
-    </BrowserRouter>
+    <AuthProvider>
+      <Toaster position="top-right" />
+      <RouterProvider router={router} />
+    </AuthProvider>
   );
 }

@@ -16,6 +16,7 @@
  * workforceService — methods that talk to /api/workforce/*:
  *   getDashboard       GET    /workforce/dashboard         — KPIs + dept stats
  *   getDepartments     GET    /workforce/departments       — all departments list
+ *   getVacancies       GET    /workforce/vacancies         — all approved positions (flattened)
  *   getPlans           GET    /workforce/plans             — filterable plan list
  *   getPlan            GET    /workforce/plans/:id         — single plan detail
  *   createPlan         POST   /workforce/plans             — create a new draft
@@ -62,6 +63,10 @@ export const authService = {
   /** Updates the authenticated user's optional job title */
   completeProfile: (title: string) =>
     api.patch("/auth/complete-profile", { title }),
+  getUsers: () => api.get("/auth/users"),
+  getRolePermissions: () => api.get("/auth/roles/permissions"),
+  updateRolePermissions: (role: string, permissions: string[]) =>
+    api.patch(`/auth/roles/${role}/permissions`, { permissions }),
 };
 
 /** Workforce-planning API calls — all require a valid, verified JWT */
@@ -71,6 +76,9 @@ export const workforceService = {
 
   /** Returns all departments sorted by name, used to populate dropdown menus */
   getDepartments: () => api.get("/workforce/departments"),
+
+  /** Returns all positions from CEO-approved plans, flattened into individual vacancy records */
+  getVacancies: () => api.get("/workforce/vacancies"),
 
   /**
    * Returns a list of all workforce plans.
@@ -109,7 +117,11 @@ export const workforceService = {
    * Allowed types: PDF, Word, Excel, and images (validated on the backend too).
    * @param onProgress optional callback receiving upload percentage (0-100)
    */
-  uploadAttachment: (id: string, file: File, onProgress?: (pct: number) => void) => {
+  uploadAttachment: (
+    id: string,
+    file: File,
+    onProgress?: (pct: number) => void,
+  ) => {
     const formData = new FormData();
     formData.append("file", file);
     return api.post(`/workforce/plans/${id}/attachments`, formData, {

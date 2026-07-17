@@ -19,8 +19,11 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  FiTrendingUp, FiUsers, FiClock,
-  FiAlertTriangle, FiRefreshCw,
+  FiTrendingUp,
+  FiUsers,
+  FiClock,
+  FiAlertTriangle,
+  FiRefreshCw,
 } from "react-icons/fi";
 import StatusBadge from "../../components/common/StatusBadge";
 import { workforceService } from "../../services/workforceService";
@@ -36,9 +39,20 @@ function formatBudget(usd: number): string {
   return `$${usd}`;
 }
 
-function KpiCard({ title, value, subtitle, icon, trend, empty }: {
-  title: string; value: string | number; subtitle?: string;
-  icon: React.ReactNode; trend?: boolean; empty?: boolean;
+function KpiCard({
+  title,
+  value,
+  subtitle,
+  icon,
+  trend,
+  empty,
+}: {
+  title: string;
+  value: string | number;
+  subtitle?: string;
+  icon: React.ReactNode;
+  trend?: boolean;
+  empty?: boolean;
 }) {
   return (
     <div className={`kpi-card${empty ? " kpi-card-empty" : ""}`}>
@@ -59,11 +73,11 @@ function KpiCard({ title, value, subtitle, icon, trend, empty }: {
 
 /* ── Status label map — human-readable names for every PlanStatus ─────── */
 const STATUS_LABEL: Record<string, string> = {
-  DRAFT:       "Draft",
-  SUBMITTED:   "Submitted",
+  DRAFT: "Draft",
+  SUBMITTED: "Submitted",
   HR_APPROVED: "HR Approved",
-  APPROVED:    "Approved",
-  REJECTED:    "Rejected",
+  APPROVED: "Approved",
+  REJECTED: "Rejected",
 };
 
 /* ── Page ─────────────────────────────────────────────────────────────── */
@@ -88,13 +102,19 @@ export default function WorkforceDashboard() {
       });
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+  }, []);
 
   if (loading) {
-    return <div className="page-loading"><div className="loader-icon" /></div>;
+    return (
+      <div className="page-loading">
+        <div className="loader-icon" />
+      </div>
+    );
   }
 
-  const kpis           = data?.kpis;
+  const kpis = data?.kpis;
   const activeRequests = data?.activeRequests ?? [];
 
   // allPlans comes from the backend with status NOT IN ('DRAFT').
@@ -102,26 +122,20 @@ export default function WorkforceDashboard() {
   const allPlans = data?.allPlans ?? [];
 
   // Counts per status — used in the table header summary
-  const approvedCount  = allPlans.filter((p) => p.status === "APPROVED").length;
-  const rejectedCount  = allPlans.filter((p) => p.status === "REJECTED").length;
-  const pendingCount   = allPlans.filter((p) =>
-    ["SUBMITTED", "HR_APPROVED"].includes(p.status)
+  const approvedCount = allPlans.filter((p) => p.status === "APPROVED").length;
+  const rejectedCount = allPlans.filter((p) => p.status === "REJECTED").length;
+  const pendingCount = allPlans.filter((p) =>
+    ["SUBMITTED", "HR_APPROVED"].includes(p.status),
   ).length;
-
-  const fyYears = allPlans.map((r) => r.fiscal_year).filter(Boolean);
-  const fyLabel = fyYears.length > 0
-    ? `${Math.min(...fyYears)}–${Math.max(...fyYears)}`
-    : `${new Date().getFullYear()}`;
 
   return (
     <div className="dashboard-page">
-
       {/* ── Page header ── */}
       <div className="dashboard-header">
         <div>
           <h1 className="dashboard-title">Workforce Planning</h1>
           <p className="dashboard-description">
-            Headcount allocation and recruitment overview — FY {fyLabel}
+            Headcount allocation and recruitment overview
           </p>
         </div>
         <div className="toolbar">
@@ -182,7 +196,6 @@ export default function WorkforceDashboard() {
 
       {/* ── Two-column main grid ── */}
       <div className="dashboard-grid">
-
         {/* ── Left: all plans table ── */}
         <div className="table-card">
           <div className="card-header">
@@ -191,9 +204,33 @@ export default function WorkforceDashboard() {
               {/* Summary row showing counts per status */}
               <p className="dashboard-plan-summary">
                 {allPlans.length} total
-                {approvedCount  > 0 && <> · <span className="summary-approved">{approvedCount} approved</span></>}
-                {pendingCount   > 0 && <> · <span className="summary-pending">{pendingCount} pending</span></>}
-                {rejectedCount  > 0 && <> · <span className="summary-rejected">{rejectedCount} rejected</span></>}
+                {approvedCount > 0 && (
+                  <>
+                    {" "}
+                    ·{" "}
+                    <span className="summary-approved">
+                      {approvedCount} approved
+                    </span>
+                  </>
+                )}
+                {pendingCount > 0 && (
+                  <>
+                    {" "}
+                    ·{" "}
+                    <span className="summary-pending">
+                      {pendingCount} pending
+                    </span>
+                  </>
+                )}
+                {rejectedCount > 0 && (
+                  <>
+                    {" "}
+                    ·{" "}
+                    <span className="summary-rejected">
+                      {rejectedCount} rejected
+                    </span>
+                  </>
+                )}
               </p>
             </div>
           </div>
@@ -219,7 +256,10 @@ export default function WorkforceDashboard() {
                       </span>
                       {/* Only planners can create plans */}
                       {isPlanner && (
-                        <Link to="/workforce/plans/new" className="empty-state-link">
+                        <Link
+                          to="/workforce/plans/new"
+                          className="empty-state-link"
+                        >
                           Create the first plan
                         </Link>
                       )}
@@ -227,36 +267,48 @@ export default function WorkforceDashboard() {
                   </tr>
                 ) : (
                   allPlans.map((plan: WorkforcePlan) => {
-                    const totalHc = plan.positions?.reduce((s, p) => s + p.count, 0) ?? 0;
-                    const period  = plan.planning_period === "QUARTERLY" && plan.quarter
-                      ? `Q${plan.quarter} ${plan.fiscal_year}`
-                      : `Annual ${plan.fiscal_year}`;
+                    const totalHc =
+                      plan.positions?.reduce((s, p) => s + p.count, 0) ?? 0;
+                    const period =
+                      plan.planning_period === "QUARTERLY" && plan.quarter
+                        ? `Q${plan.quarter} ${plan.fiscal_year}`
+                        : `Annual ${plan.fiscal_year}`;
 
                     // Row accent class so approved/rejected rows are visually distinct
-                    const rowClass = plan.status === "APPROVED"
-                      ? "table-row table-row-approved"
-                      : plan.status === "REJECTED"
-                      ? "table-row table-row-rejected"
-                      : "table-row";
+                    const rowClass =
+                      plan.status === "APPROVED"
+                        ? "table-row table-row-approved"
+                        : plan.status === "REJECTED"
+                          ? "table-row table-row-rejected"
+                          : "table-row";
 
                     return (
                       <tr key={plan.id} className={rowClass}>
                         <td className="table-cell table-cell-emphasis">
                           {/* Planners get an edit/view link; others just see the title */}
                           {isPlanner ? (
-                            <Link to={`/workforce/plans/${plan.id}`} className="table-plan-link">
+                            <Link
+                              to={`/workforce/plans/${plan.id}`}
+                              className="table-plan-link"
+                            >
                               {plan.title}
                             </Link>
                           ) : (
                             plan.title
                           )}
                         </td>
-                        <td className="table-cell">{plan.department?.name ?? "—"}</td>
-                        <td className="table-cell table-cell-muted">{period}</td>
+                        <td className="table-cell">
+                          {plan.department?.name ?? "—"}
+                        </td>
+                        <td className="table-cell table-cell-muted">
+                          {period}
+                        </td>
                         <td className="table-cell">
                           <span className="table-hc-badge">{totalHc}</span>
                         </td>
-                        <td className="table-cell table-cell-muted">v{plan.version}</td>
+                        <td className="table-cell table-cell-muted">
+                          v{plan.version}
+                        </td>
                         <td className="table-cell">
                           <StatusBadge status={plan.status} />
                         </td>
@@ -296,7 +348,8 @@ export default function WorkforceDashboard() {
           ) : (
             <div className="active-requests-list">
               {activeRequests.map((req: WorkforcePlan) => {
-                const totalHc = req.positions?.reduce((s, p) => s + p.count, 0) ?? 0;
+                const totalHc =
+                  req.positions?.reduce((s, p) => s + p.count, 0) ?? 0;
                 return (
                   <Link
                     key={req.id}
@@ -305,7 +358,9 @@ export default function WorkforceDashboard() {
                     onClick={(e) => !isPlanner && e.preventDefault()}
                   >
                     <div className="request-card-header">
-                      <span className="request-card-tag">{req.department?.name ?? "—"}</span>
+                      <span className="request-card-tag">
+                        {req.department?.name ?? "—"}
+                      </span>
                       <StatusBadge status={req.status} />
                     </div>
                     <h3 className="request-card-title">{req.title}</h3>
@@ -326,7 +381,6 @@ export default function WorkforceDashboard() {
             </div>
           )}
         </div>
-
       </div>
     </div>
   );
