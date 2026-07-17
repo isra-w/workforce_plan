@@ -14,7 +14,7 @@ import fs from "fs";
 import {
   getDashboard, getPlans, getPlan,
   createPlan, updatePlan, submitPlan, reviewPlan,
-  getDepartments, getVersions, deletePlan,
+  getDepartments, getVersions, deletePlan, getVacancies,
 } from "src/controllers/workforcePlanController";
 import { protect, requireVerified, requireRoles } from "src/middleware/authMiddleware";
 import { prisma } from "src/utils/prisma";
@@ -41,6 +41,7 @@ router.use(protect, requireVerified);
 //   CEO → sees only HR_APPROVED plans
 router.get("/dashboard",          getDashboard);
 router.get("/departments",        getDepartments);
+router.get("/vacancies",          getVacancies);
 router.get("/plans",              getPlans);
 router.get("/plans/:id",          getPlan);
 router.get("/plans/:id/versions", getVersions);

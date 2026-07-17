@@ -12,6 +12,7 @@ enum UserRole {
   HR
   CEO
   CANDIDATE
+  HR_ADMIN
 }
 
 enum PlanningPeriod {
@@ -46,6 +47,7 @@ model User {
   full_name          String
   role               UserRole        @default(WORKFORCE_PLANNER)
   title              String?
+  permissions        String[]        @default([])
   is_verified        Boolean         @default(false)
   verification_token String?
   is_active          Boolean         @default(true)
@@ -58,11 +60,21 @@ model User {
   @@map("users")
 }
 
+model RolePermission {
+  role        UserRole @id
+  permissions String[] @default([])
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  @@map("role_permissions")
+}
+
 model Department {
   id          String          @id @default(uuid())
   name        String          @unique
   code        String?         @unique
   approved_hc Int             @default(0)
+  budgeted_hc Int             @default(0)
   current_hc  Int             @default(0)
   created_at  DateTime        @default(now())
   plans       WorkforcePlan[]
@@ -85,9 +97,12 @@ model WorkforcePlan {
   id              String           @id @default(uuid())
   title           String
   department_id   String
+  cycle_id        String
   fiscal_year     Int
   planning_period PlanningPeriod   @default(ANNUAL)
   quarter         Int?
+  start_date      DateTime?
+  end_date        DateTime?
   justification   String?
   status          PlanStatus       @default(DRAFT)
   version         Int              @default(1)
@@ -96,7 +111,8 @@ model WorkforcePlan {
   submitted_at    DateTime?
   created_at      DateTime         @default(now())
   updated_at      DateTime         @updatedAt
-  department      Department       @relation(fields: [department_id], references: [id])references: [id])
+  department      Department       @relation(fields: [department_id], references: [id])
+  cycle           PlanningCycle    @relation(fields: [cycle_id], references: [id])
   created_by      User             @relation(fields: [created_by_id], references: [id])
   positions       PlanPosition[]
   attachments     PlanAttachment[]

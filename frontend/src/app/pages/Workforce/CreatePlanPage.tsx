@@ -37,6 +37,7 @@ export default function CreatePlanPage() {
 
   // Department list for the dropdown — fetched once on mount
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [deptLoading, setDeptLoading] = useState(true);
 
   // Loading state for the initial plan fetch (edit mode only)
   const [loading, setLoading] = useState(false);
@@ -85,15 +86,22 @@ export default function CreatePlanPage() {
    */
 
   useEffect(() => {
-    workforceService.getDepartments().then((res) => {
-      setDepartments(res.data.data.departments);
-      if (!form.department_id && res.data.data.departments.length) {
-        setForm((f) => ({
-          ...f,
-          department_id: res.data.data.departments[0].id,
-        }));
-      }
-    });
+    setDeptLoading(true);
+    workforceService
+      .getDepartments()
+      .then((res) => {
+        const depts = res.data.data.departments as Department[];
+        setDepartments(depts);
+        // Pre-select the first department only in create mode
+        if (!id && depts.length) {
+          setForm((f) => ({
+            ...f,
+            department_id: f.department_id || depts[0].id,
+          }));
+        }
+      })
+      .catch(() => toast.error("Failed to load departments"))
+      .finally(() => setDeptLoading(false));
 
     if (id) {
       setLoading(true);
@@ -487,9 +495,15 @@ export default function CreatePlanPage() {
                     onChange={(e) =>
                       setForm({ ...form, department_id: e.target.value })
                     }
-                    disabled={!isEditable}
+                    disabled={!isEditable || deptLoading}
                     className="field-select"
                   >
+                    {deptLoading && (
+                      <option value="">Loading departments…</option>
+                    )}
+                    {!deptLoading && departments.length === 0 && (
+                      <option value="">No departments found</option>
+                    )}
                     {departments.map((d) => (
                       <option key={d.id} value={d.id}>
                         {d.name}
