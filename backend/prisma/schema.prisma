@@ -74,6 +74,7 @@ model Department {
   name        String          @unique
   code        String?         @unique
   approved_hc Int             @default(0)
+  budgeted_hc Int             @default(0)
   current_hc  Int             @default(0)
   created_at  DateTime        @default(now())
   plans       WorkforcePlan[]
@@ -85,9 +86,12 @@ model WorkforcePlan {
   id              String           @id @default(uuid())
   title           String
   department_id   String
+  cycle_id        String
   fiscal_year     Int
   planning_period PlanningPeriod   @default(ANNUAL)
   quarter         Int?
+  start_date      DateTime?
+  end_date        DateTime?
   justification   String?
   status          PlanStatus       @default(DRAFT)
   version         Int              @default(1)
@@ -97,6 +101,10 @@ model WorkforcePlan {
   created_at      DateTime         @default(now())
   updated_at      DateTime         @updatedAt
   department      Department       @relation(fields: [department_id], references: [id])
+<<<<<<< HEAD
+=======
+  cycle           PlanningCycle    @relation(fields: [cycle_id], references: [id])
+>>>>>>> b475b59b032ca4d8f911eb1389cd01c77985a302
   created_by      User             @relation(fields: [created_by_id], references: [id])
   positions       PlanPosition[]
   attachments     PlanAttachment[]
