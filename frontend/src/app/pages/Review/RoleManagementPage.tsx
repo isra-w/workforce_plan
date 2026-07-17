@@ -13,7 +13,14 @@ import {
   normalizePermissions,
 } from "../../utils/permissions";
 import { UserRole } from "../../../utils/types";
-import { FiSave, FiSearch, FiChevronDown, FiChevronRight, FiUsers, FiSliders } from "react-icons/fi";
+import {
+  FiSave,
+  FiSearch,
+  FiChevronDown,
+  FiChevronRight,
+  FiUsers,
+  FiSliders,
+} from "react-icons/fi";
 import toast from "react-hot-toast";
 
 interface RolePermissionRow {
@@ -23,25 +30,45 @@ interface RolePermissionRow {
 
 // Map roles to descriptions and static visual properties to match mockup layout
 const ROLE_METADATA: Record<string, { desc: string; isSystem: boolean }> = {
-  HR_ADMIN: { desc: "Full HR operations and system configuration access", isSystem: true },
-  HRAdmin: { desc: "Full HR operations and system configuration access", isSystem: true },
-  CEO: { desc: "Final approver for workforce plans and high-priority posts", isSystem: true },
-  WORK_UNIT: { desc: "Operational unit user for workforce submissions", isSystem: true },
-  DEPARTMENT_MANAGER: { desc: "Initiates workforce planning and recruitment requests", isSystem: false },
-  DEFAULT: { desc: "Standard platform permissions and basic access", isSystem: false }
+  HR_ADMIN: {
+    desc: "Full HR operations and system configuration access",
+    isSystem: true,
+  },
+  HRAdmin: {
+    desc: "Full HR operations and system configuration access",
+    isSystem: true,
+  },
+  CEO: {
+    desc: "Final approver for workforce plans and high-priority posts",
+    isSystem: true,
+  },
+  WORK_UNIT: {
+    desc: "Operational unit user for workforce submissions",
+    isSystem: true,
+  },
+  DEPARTMENT_MANAGER: {
+    desc: "Initiates workforce planning and recruitment requests",
+    isSystem: false,
+  },
+  DEFAULT: {
+    desc: "Standard platform permissions and basic access",
+    isSystem: false,
+  },
 };
 
 export default function RoleManagementPage() {
   const [roles, setRoles] = useState<RolePermissionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingRole, setSavingRole] = useState<UserRole | null>(null);
-  
+
   // UX State
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
   const [roleSearch, setRoleSearch] = useState("");
   const [permissionSearch, setPermissionSearch] = useState("");
   const [moduleFilter, setModuleFilter] = useState("all");
-  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+  const [collapsedGroups, setCollapsedGroups] = useState<
+    Record<string, boolean>
+  >({});
 
   useEffect(() => {
     authService
@@ -76,7 +103,7 @@ export default function RoleManagementPage() {
             ? roleRow.permissions.filter((p) => p !== permission)
             : [...roleRow.permissions, permission],
         };
-      })
+      }),
     );
   };
 
@@ -86,7 +113,7 @@ export default function RoleManagementPage() {
         if (roleRow.role !== role) return roleRow;
         const merged = Array.from(new Set([...roleRow.permissions, ...keys]));
         return { ...roleRow, permissions: merged };
-      })
+      }),
     );
   };
 
@@ -98,7 +125,7 @@ export default function RoleManagementPage() {
           ...roleRow,
           permissions: roleRow.permissions.filter((p) => !keys.includes(p)),
         };
-      })
+      }),
     );
   };
 
@@ -109,7 +136,10 @@ export default function RoleManagementPage() {
   const savePermissions = async (roleRow: RolePermissionRow) => {
     setSavingRole(roleRow.role);
     try {
-      await authService.updateRolePermissions(roleRow.role, roleRow.permissions);
+      await authService.updateRolePermissions(
+        roleRow.role,
+        roleRow.permissions,
+      );
       toast.success("Role permissions updated successfully");
     } catch (error) {
       console.error(error);
@@ -121,8 +151,10 @@ export default function RoleManagementPage() {
 
   // Helper to categorize PermissionKeys into groups/modules
   const getPermissionGroup = (key: string): string => {
-    if (key.includes(":")) return key.split(":")[0].replace(/_/g, " ").toUpperCase();
-    if (key.includes("_")) return key.split("_")[0].replace(/_/g, " ").toUpperCase();
+    if (key.includes(":"))
+      return key.split(":")[0].replace(/_/g, " ").toUpperCase();
+    if (key.includes("_"))
+      return key.split("_")[0].replace(/_/g, " ").toUpperCase();
     return "APPLICATION";
   };
 
@@ -194,7 +226,7 @@ export default function RoleManagementPage() {
           align-items: center;
         }
         .rm-sidebar-heading-row h2 {
-          font-size: 0.95rem;
+          font-size: 1.7rem;
           font-weight: 700;
           color: #1e293b;
           margin: 0;
@@ -229,7 +261,7 @@ export default function RoleManagementPage() {
           letter-spacing: 0.05em;
         }
         .rm-status-badge {
-          font-size: 0.65rem;
+          font-size: 1rem;
           font-weight: 700;
           background: #eff6ff;
           color: #1d4ed8;
@@ -590,7 +622,10 @@ export default function RoleManagementPage() {
       <div className="rm-header">
         <div className="rm-title-wrapper">
           <h1>Role Management</h1>
-          <p>Manage company roles and their access permissions. System roles cannot be deleted.</p>
+          <p>
+            Manage company roles and their access permissions. System roles
+            cannot be deleted.
+          </p>
         </div>
       </div>
 
@@ -600,12 +635,14 @@ export default function RoleManagementPage() {
         </div>
       ) : (
         <div className="rm-split-layout">
-          
           {/* LEFT SIDEBAR: ROLES SELECTOR */}
           <div className="rm-roles-sidebar">
             <div className="rm-sidebar-heading-row">
               <h2>Roles</h2>
-              <button className="rm-new-role-btn" onClick={() => toast.success("Creation workflow loaded")}>
+              <button
+                className="rm-new-role-btn"
+                onClick={() => toast.success("Creation workflow loaded")}
+              >
                 <span>+</span> New Role
               </button>
             </div>
@@ -635,10 +672,11 @@ export default function RoleManagementPage() {
             <div className="rm-roles-list-cards">
               {roles
                 .filter((roleRow) =>
-                  roleRow.role.toLowerCase().includes(roleSearch.toLowerCase())
+                  roleRow.role.toLowerCase().includes(roleSearch.toLowerCase()),
                 )
                 .map((roleRow) => {
-                  const meta = ROLE_METADATA[roleRow.role] || ROLE_METADATA.DEFAULT;
+                  const meta =
+                    ROLE_METADATA[roleRow.role] || ROLE_METADATA.DEFAULT;
                   const isActive = roleRow.role === selectedRole;
                   const displayLabel = roleRow.role.replace(/_/g, " ");
 
@@ -650,18 +688,25 @@ export default function RoleManagementPage() {
                     >
                       <div className="rm-role-card-info">
                         <div className="rm-role-title-row">
-                          <span className="rm-role-card-name">{displayLabel}</span>
+                          <span className="rm-role-card-name">
+                            {displayLabel}
+                          </span>
                           {meta.isSystem && (
                             <span className="rm-system-tag">SYSTEM</span>
                           )}
                         </div>
                         <div className="rm-role-card-desc">{meta.desc}</div>
                         <div className="rm-role-perm-count">
-                          <span>🔑</span> {roleRow.permissions.length} permissions
+                          <span>🔑</span> {roleRow.permissions.length}{" "}
+                          permissions
                         </div>
                       </div>
                       <div className="rm-role-card-icon-wrapper">
-                        {isActive ? <FiSliders size={14} /> : <FiUsers size={14} />}
+                        {isActive ? (
+                          <FiSliders size={14} />
+                        ) : (
+                          <FiUsers size={14} />
+                        )}
                       </div>
                     </div>
                   );
@@ -672,13 +717,15 @@ export default function RoleManagementPage() {
           {/* RIGHT PANEL: ROLE PERMISSIONS MATRIX */}
           {activeRoleData && (
             <div className="rm-matrix-panel">
-              
               {/* Header inside Matrix Panel */}
               <div className="rm-matrix-header-row">
                 <div>
                   <div className="rm-matrix-meta-label">
                     <span>ROLE MANAGEMENT MATRIX</span>
-                    { (ROLE_METADATA[activeRoleData.role] || ROLE_METADATA.DEFAULT).isSystem && (
+                    {(
+                      ROLE_METADATA[activeRoleData.role] ||
+                      ROLE_METADATA.DEFAULT
+                    ).isSystem && (
                       <span className="rm-matrix-role-badge">SYSTEM ROLE</span>
                     )}
                   </div>
@@ -686,7 +733,12 @@ export default function RoleManagementPage() {
                     {activeRoleData.role.replace(/_/g, " ")}
                   </h2>
                   <p className="rm-matrix-role-desc">
-                    {(ROLE_METADATA[activeRoleData.role] || ROLE_METADATA.DEFAULT).desc}
+                    {
+                      (
+                        ROLE_METADATA[activeRoleData.role] ||
+                        ROLE_METADATA.DEFAULT
+                      ).desc
+                    }
                   </p>
                 </div>
 
@@ -716,7 +768,7 @@ export default function RoleManagementPage() {
                     onChange={(e) => setPermissionSearch(e.target.value)}
                   />
                 </div>
-                
+
                 <select
                   className="rm-module-select"
                   value={moduleFilter}
@@ -736,32 +788,40 @@ export default function RoleManagementPage() {
                 .filter((mod) => moduleFilter === "all" || moduleFilter === mod)
                 .map((groupName) => {
                   const allGroupKeys = groupedPermissions[groupName];
-                  
+
                   // Filter individual group items by search string
                   const filteredKeys = allGroupKeys.filter((key) =>
-                    key.toLowerCase().includes(permissionSearch.toLowerCase())
+                    key.toLowerCase().includes(permissionSearch.toLowerCase()),
                   );
 
                   if (filteredKeys.length === 0) return null;
 
                   const isCollapsed = !!collapsedGroups[groupName];
                   const activeCount = filteredKeys.filter((key) =>
-                    activeRoleData.permissions.includes(key)
+                    activeRoleData.permissions.includes(key),
                   ).length;
 
                   return (
                     <div className="rm-accordion-group" key={groupName}>
                       {/* Accordion Trigger */}
                       <div className="rm-accordion-header">
-                        <div 
+                        <div
                           className="rm-accordion-header-left"
                           onClick={() => toggleGroupCollapse(groupName)}
                         >
                           <span className="rm-accordion-chevron">
-                            {isCollapsed ? <FiChevronRight size={16} /> : <FiChevronDown size={16} />}
+                            {isCollapsed ? (
+                              <FiChevronRight size={16} />
+                            ) : (
+                              <FiChevronDown size={16} />
+                            )}
                           </span>
-                          <span className="rm-accordion-title">{groupName}</span>
-                          <span className={`rm-accordion-enabled-badge ${activeCount === 0 ? "muted" : ""}`}>
+                          <span className="rm-accordion-title">
+                            {groupName}
+                          </span>
+                          <span
+                            className={`rm-accordion-enabled-badge ${activeCount === 0 ? "muted" : ""}`}
+                          >
                             {activeCount} / {filteredKeys.length} Enabled
                           </span>
                         </div>
@@ -770,14 +830,24 @@ export default function RoleManagementPage() {
                           <button
                             type="button"
                             className="rm-acc-action-btn grant"
-                            onClick={() => grantAllForModule(activeRoleData.role, filteredKeys)}
+                            onClick={() =>
+                              grantAllForModule(
+                                activeRoleData.role,
+                                filteredKeys,
+                              )
+                            }
                           >
                             Grant All
                           </button>
                           <button
                             type="button"
                             className="rm-acc-action-btn revoke"
-                            onClick={() => revokeAllForModule(activeRoleData.role, filteredKeys)}
+                            onClick={() =>
+                              revokeAllForModule(
+                                activeRoleData.role,
+                                filteredKeys,
+                              )
+                            }
                           >
                             Revoke All
                           </button>
@@ -788,27 +858,39 @@ export default function RoleManagementPage() {
                       {!isCollapsed && (
                         <div className="rm-accordion-content">
                           {filteredKeys.map((permissionKey) => {
-                            const isAllowed = activeRoleData.permissions.includes(permissionKey);
-                            
+                            const isAllowed =
+                              activeRoleData.permissions.includes(
+                                permissionKey,
+                              );
+
                             // Humanize labels e.g. "Application:Read" or "PLAN_CREATE" -> "Read Applications"
-                            const prettyName = permissionKey.includes(":") 
-                              ? permissionKey.split(":")[1] 
+                            const prettyName = permissionKey.includes(":")
+                              ? permissionKey.split(":")[1]
                               : permissionKey.replace(/_/g, " ");
 
                             return (
-                              <div className="rm-perm-item-row" key={permissionKey}>
+                              <div
+                                className="rm-perm-item-row"
+                                key={permissionKey}
+                              >
                                 <div className="rm-perm-item-left">
                                   <div className="rm-perm-item-name">
                                     {permissionKey}
                                   </div>
                                   <div className="rm-perm-item-desc">
-                                    Enables action access for {prettyName.toLowerCase()}.
+                                    Enables action access for{" "}
+                                    {prettyName.toLowerCase()}.
                                   </div>
                                 </div>
 
                                 <div
                                   className={`rm-toggle-pill ${isAllowed ? "allowed" : "denied"}`}
-                                  onClick={() => togglePermission(activeRoleData.role, permissionKey)}
+                                  onClick={() =>
+                                    togglePermission(
+                                      activeRoleData.role,
+                                      permissionKey,
+                                    )
+                                  }
                                 >
                                   {isAllowed ? "Allowed" : "Denied"}
                                 </div>
