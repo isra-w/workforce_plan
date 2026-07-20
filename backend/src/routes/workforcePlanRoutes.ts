@@ -13,7 +13,6 @@
  */
 import express from "express";
 import multer from "multer";
-import path from "path";
 import fs from "fs";
 import {
   getDashboard, getPlans, getPlan,
@@ -22,11 +21,13 @@ import {
 } from "src/controllers/workforcePlanController";
 import { protect, requireVerified, requireRoles } from "src/middleware/authMiddleware";
 import * as planService from "src/services/workforcePlanService";
+import { config } from "src/config";
 
 const router = express.Router();
 
-// ── Multer — disk storage under /uploads ──────────────────────────────────
-const uploadDir = path.join(process.cwd(), "uploads");
+// ── Multer — disk storage, path and size limit come from config ───────────
+const { uploadDir, uploadMaxBytes, allowedMimeTypes } = config;
+
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
 const storage = multer.diskStorage({
@@ -36,18 +37,9 @@ const storage = multer.diskStorage({
     cb(null, `${unique}-${file.originalname}`);
   },
 });
-const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } });
+const upload = multer({ storage, limits: { fileSize: uploadMaxBytes } });
 
-const ALLOWED_MIME_TYPES = [
-  "application/pdf",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "application/vnd.ms-excel",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  "image/jpeg",
-  "image/png",
-  "image/gif",
-];
+const ALLOWED_MIME_TYPES = allowedMimeTypes;
 
 // ── Auth guard for every route below ──────────────────────────────────────
 router.use(protect, requireVerified);

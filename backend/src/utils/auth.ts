@@ -17,9 +17,7 @@
 import bcrypt from "bcryptjs";
 import jwt, { SignOptions } from "jsonwebtoken";
 import crypto from "crypto";
-
-const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "7d";
+import { config } from "src/config";
 
 export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 12);
@@ -33,12 +31,12 @@ export async function comparePassword(
 }
 
 export function generateToken(userId: string, role: string): string {
-  const options: SignOptions = { expiresIn: JWT_EXPIRES_IN as SignOptions["expiresIn"] };
-  return jwt.sign({ id: userId, role }, JWT_SECRET, options);
+  const options: SignOptions = { expiresIn: config.jwtExpiresIn as SignOptions["expiresIn"] };
+  return jwt.sign({ id: userId, role }, config.jwtSecret, options);
 }
 
 export function verifyToken(token: string): { id: string; role: string } {
-  return jwt.verify(token, JWT_SECRET) as { id: string; role: string };
+  return jwt.verify(token, config.jwtSecret) as { id: string; role: string };
 }
 
 export function generateVerificationToken(): string {

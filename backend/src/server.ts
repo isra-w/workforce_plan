@@ -8,17 +8,14 @@
 import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
 import morgan from "morgan";
-import dotenv from "dotenv";
+import { config } from "src/config";
 import authRoutes from "src/routes/authRoutes";
 import workforcePlanRoutes from "src/routes/workforcePlanRoutes";
 
-dotenv.config();
-
 const app = express();
-const PORT = process.env.PORT || 5000;
 
-app.use(cors({ origin: process.env.FRONTEND_URL || "http://localhost:5173", credentials: true }));
-app.use(morgan("dev"));
+app.use(cors({ origin: config.frontendUrl, credentials: true }));
+app.use(morgan(config.isProduction ? "combined" : "dev"));
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
@@ -34,8 +31,8 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   res.status(500).json({ status: "error", message: err.message || "Internal server error" });
 });
 
-app.listen(PORT, () => {
-  console.log(`Workforce API running on http://localhost:${PORT}`);
+app.listen(config.port, () => {
+  console.log(`[${config.nodeEnv}] Workforce API running on http://localhost:${config.port}`);
 });
 
 export default app;
