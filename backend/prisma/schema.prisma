@@ -56,6 +56,7 @@ model User {
   plans              WorkforcePlan[]
   plan_versions      PlanVersion[]
   approval_logs      ApprovalLog[]
+  user_permissions   UserPermission[]
 
   @@map("users")
 }
@@ -68,6 +69,27 @@ model RolePermission {
 
   @@map("role_permissions")
 }
+
+// ---------------------------------------------------------------------------
+// UserPermission
+// Stores one row per user × resource × action combination.
+// Actions: READ | CREATE | UPDATE | DELETE
+// Resources are free-form strings (e.g. "Workforce Plans", "Vacancies").
+// ---------------------------------------------------------------------------
+model UserPermission {
+  id         String   @id @default(uuid())
+  user_id    String
+  resource   String
+  action     String   // READ | CREATE | UPDATE | DELETE
+  level      String   @default("N/A") // N/A | Own | Team | Any
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, resource, action])
+  @@map("user_permissions")
+}
+
 
 model Department {
   id          String          @id @default(uuid())

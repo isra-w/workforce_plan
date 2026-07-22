@@ -67,6 +67,10 @@ export const authService = {
   getRolePermissions: () => api.get("/auth/roles/permissions"),
   updateRolePermissions: (role: string, permissions: string[]) =>
     api.patch(`/auth/roles/${role}/permissions`, { permissions }),
+  getUserResourcePermissions: (userId: string) =>
+    api.get(`/auth/users/${userId}/resource-permissions`),
+  setUserResourcePermissions: (userId: string, patches: Array<{ resource: string; action: string; level: string }>) =>
+    api.put(`/auth/users/${userId}/resource-permissions`, { patches }),
 };
 
 /** Workforce-planning API calls — all require a valid, verified JWT */

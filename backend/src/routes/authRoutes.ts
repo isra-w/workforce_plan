@@ -27,6 +27,8 @@ import {
   updateUserPermissions,
   listRolePermissions,
   updateRolePermissions,
+  getResourcePermissions,
+  setResourcePermissions,
 } from "src/controllers/authController";
 import { protect, requireRoles } from "src/middleware/authMiddleware";
 
@@ -53,6 +55,18 @@ router.patch(
   "/users/:id/permissions",
   requireRoles("HR_ADMIN"),
   updateUserPermissions,
+);
+
+// ── Granular resource × action permissions (HR_ADMIN only) ───────────────
+router.get(
+  "/users/:id/resource-permissions",
+  requireRoles("HR_ADMIN"),
+  getResourcePermissions,
+);
+router.put(
+  "/users/:id/resource-permissions",
+  requireRoles("HR_ADMIN"),
+  setResourcePermissions,
 );
 
 export default router;

@@ -252,7 +252,7 @@ export const updateRolePermissions = async (
 };
 
 // ---------------------------------------------------------------------------
-// updateUserPermissions
+// updateUserPermissions (legacy flat array — kept for backward compat)
 // ---------------------------------------------------------------------------
 export const updateUserPermissions = async (
   req: AuthRequest,
@@ -268,6 +268,52 @@ export const updateUserPermissions = async (
       message: "Permissions updated",
       data: { user },
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ---------------------------------------------------------------------------
+// getResourcePermissions — GET /users/:id/resource-permissions
+// Returns the full resource × action grid for a specific user
+// ---------------------------------------------------------------------------
+export const getResourcePermissions = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const grid = await authService.getUserPermissionGrid(req.params.id);
+    res.status(200).json({
+      status: "success",
+      data: {
+        permissions: grid,
+        resources: authService.RESOURCES,
+        actions: authService.ACTIONS,
+        levels: authService.PERMISSION_LEVELS,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ---------------------------------------------------------------------------
+// setResourcePermissions — PUT /users/:id/resource-permissions
+// Replaces the full resource × action grid for a specific user
+// ---------------------------------------------------------------------------
+export const setResourcePermissions = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { patches } = req.body as { patches: authService.PermissionPatch[] };
+    if (!Array.isArray(patches)) {
+      return res.status(400).json({ status: "fail", message: "patches array is required" });
+    }
+    const grid = await authService.setUserPermissionGrid(req.params.id, patches);
+    res.status(200).json({ status: "success", data: { permissions: grid } });
   } catch (error) {
     next(error);
   }

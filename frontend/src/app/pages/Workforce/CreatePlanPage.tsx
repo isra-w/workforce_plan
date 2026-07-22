@@ -272,18 +272,40 @@ export default function CreatePlanPage() {
 
   /**
    * handleUploadPending — uploads every file in pendingFiles one by one,
-   * tracking per-file progress. Requires the plan to already be saved.
+   * tracking per-file progress.
+   *
+   * In create mode (no id yet) the plan is saved as a draft first to obtain
+   * an id, then the upload proceeds automatically — the user never sees a
+   * blocking message.
    */
   const handleUploadPending = async () => {
-    if (!id) {
-      toast.error("Save the plan as a draft first, then attach documents.");
-      return;
-    }
     if (pendingFiles.length === 0) return;
+
+    // Resolve the plan id — create the draft silently if we are in create mode
+    let planId = id;
+    if (!planId) {
+      if (!form.title) {
+        toast.error("Add a plan title before uploading files.");
+        return;
+      }
+      setSaving(true);
+      try {
+        const res = await workforceService.createPlan({ ...form, positions });
+        planId = res.data.data.plan.id;
+        // Navigate to the edit URL so the component re-mounts with the real id
+        navigate(`/workforce/plans/${planId}`, { replace: true });
+      } catch {
+        toast.error("Failed to save draft before uploading.");
+        setSaving(false);
+        return;
+      }
+      setSaving(false);
+    }
+
     for (const file of pendingFiles) {
       try {
         setUploadProgress((prev) => ({ ...prev, [file.name]: 1 }));
-        const res = await workforceService.uploadAttachment(id, file, (pct) =>
+        const res = await workforceService.uploadAttachment(planId!, file, (pct) =>
           setUploadProgress((prev) => ({ ...prev, [file.name]: pct }))
         );
         setAttachments((prev) => [...prev, res.data.data.attachment]);
@@ -826,18 +848,10 @@ export default function CreatePlanPage() {
                       variant="primary"
                       icon={<FiUpload size={15} />}
                       onClick={handleUploadPending}
-                      disabled={!id}
-                      title={!id ? "Save draft first to enable uploads" : undefined}
+                      loading={saving}
                     >
                       Upload {pendingFiles.length} file{pendingFiles.length !== 1 ? "s" : ""}
                     </Button>
-                  )}
-
-                  {/* Nudge shown in create mode before the plan has an ID */}
-                  {!id && pendingFiles.length > 0 && (
-                    <p className="attachment-nudge">
-                      Save the plan as a draft first to upload your files.
-                    </p>
                   )}
                 </div>
               )}

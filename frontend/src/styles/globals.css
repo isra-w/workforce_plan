@@ -295,7 +295,7 @@
   align-items: center;
   padding: 0.55rem 0.9rem;
   border-radius: 0.65rem;
-  color: #475569;
+  color: #16a34a;
   background-color: #f8fafc;
   text-decoration: none;
   font-size: 0.82rem;
@@ -636,7 +636,7 @@
 
 .status-draft {
   background-color: #f1f5f9;
-  color: #475569;
+  color: #16a34a;
 }
 
 .status-submitted {
@@ -696,7 +696,7 @@
 
 .status-low {
   background-color: #f1f5f9;
-  color: #475569;
+  color: #16a34a;
 }
 
 .status-positive {
@@ -1068,7 +1068,7 @@
   padding: 0.2rem 0.6rem;
   border-radius: 9999px;
   background-color: #f1f5f9;
-  color: #475569;
+  color: #16a34a;
   font-size: 0.72rem;
   font-weight: 600;
 }
@@ -1103,7 +1103,7 @@
   padding: 0.2rem 0.65rem;
   border-radius: 9999px;
   background-color: #f1f5f9;
-  color: #475569;
+  color: #16a34a;
   font-weight: 700;
   font-size: 0.78rem;
   min-width: 1.5rem;
@@ -1200,7 +1200,7 @@
 .toolbar-button-secondary {
   border-color: #e2e8f0;
   background-color: white;
-  color: #475569;
+  color: #16a34a;
 }
 
 .toolbar-button-secondary:hover {
@@ -2325,7 +2325,7 @@
   padding: 0.15rem 0.5rem;
   border-radius: 9999px;
   background-color: #f1f5f9;
-  color: #475569;
+  color: #16a34a;
   font-size: 0.78rem;
   font-weight: 700;
 }
@@ -2462,7 +2462,7 @@
   font-size: 0.72rem;
   font-weight: 600;
   background: #f1f5f9;
-  color: #475569;
+  color: #16a34a;
   border-radius: 999px;
   padding: 0.18rem 0.6rem;
 }
@@ -2669,7 +2669,7 @@
 /* "Cancel" inside the reject box */
 .review-btn-cancel {
   background: #f1f5f9;
-  color: #475569;
+  color: #16a34a;
 }
 
 .review-btn-cancel:hover:not(:disabled) {
@@ -3119,7 +3119,7 @@
 
 .jp-timeline-actor {
   font-size: 0.8rem;
-  color: #475569;
+  color: #16a34a;
   margin: 0.2rem 0 0;
 }
 
@@ -3284,7 +3284,7 @@
 
 .jp-btn-cancel {
   background: #f1f5f9;
-  color: #475569;
+  color: #16a34a;
   flex: 1;
 }
 
@@ -3557,7 +3557,7 @@
 .vacancy-card-dept {
   margin: 0;
   font-size: 0.825rem;
-  color: #475569;
+  color: #16a34a;
   font-weight: 500;
 }
 

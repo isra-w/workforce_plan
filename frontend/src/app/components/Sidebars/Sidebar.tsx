@@ -31,7 +31,6 @@ import {
   FiFileText,
   FiBarChart2,
   FiSettings,
-  FiHelpCircle,
   FiPlus,
   FiCheckSquare,
   FiAward,

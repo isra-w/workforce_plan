@@ -32,6 +32,7 @@ export const validPermissions = [
   "VIEW_OFFERS",
   "VIEW_ANALYTICS",
   "MANAGE_ROLES",
+  "MANAGE_PERMISSIONS",
 ] as const;
 
 export type PermissionValue = (typeof validPermissions)[number];
@@ -49,7 +50,7 @@ export const defaultPermissionsByRole: Record<string, PermissionValue[]> = {
   HR: ["VIEW_DASHBOARD", "VIEW_HR_REVIEW"],
   CEO: ["VIEW_DASHBOARD", "VIEW_CEO_REVIEW"],
   CANDIDATE: ["VIEW_DASHBOARD", "VIEW_CANDIDATES"],
-  HR_ADMIN: ["VIEW_DASHBOARD", "MANAGE_ROLES"],
+  HR_ADMIN: ["VIEW_DASHBOARD", "MANAGE_ROLES", "MANAGE_PERMISSIONS"],
 };
 
 // Columns returned for every user query — never exposes password_hash or tokens
@@ -319,4 +320,94 @@ export async function setUserPermissions(id: string, permissions: string[]) {
     data: { permissions },
     select: userSelect,
   });
+}
+
+// ---------------------------------------------------------------------------
+// Resource × action permissions
+// ---------------------------------------------------------------------------
+
+/** The canonical list of resources exposed in the permissions grid */
+export const RESOURCES = [
+  "Workforce Plans",
+  "Departments",
+  "Vacancies",
+  "Candidates",
+  "Interviews",
+  "Offers",
+  "Analytics",
+  "HR Review",
+  "CEO Review",
+  "Role Management",
+  "User Management",
+  "Attachments",
+  "Reports",
+] as const;
+
+export type Resource = (typeof RESOURCES)[number];
+
+export type PermissionLevel = "N/A" | "Own" | "Team" | "Any";
+export const PERMISSION_LEVELS: PermissionLevel[] = ["N/A", "Own", "Team", "Any"];
+
+/** Returns true if the level grants any access (Own, Team, or Any) */
+export function isGranted(level: string): boolean {
+  return level === "Own" || level === "Team" || level === "Any";
+}
+
+export const ACTIONS = ["READ", "CREATE", "UPDATE", "DELETE"] as const;
+export type Action = (typeof ACTIONS)[number];
+
+export interface UserPermissionRow {
+  resource: Resource;
+  READ: PermissionLevel;
+  CREATE: PermissionLevel;
+  UPDATE: PermissionLevel;
+  DELETE: PermissionLevel;
+}
+export async function getUserPermissionGrid(userId: string): Promise<UserPermissionRow[]> {
+  const rows = await prisma.userPermission.findMany({
+    where: { user_id: userId },
+  });
+
+  const map: Record<string, Record<string, PermissionLevel>> = {};
+  for (const row of rows) {
+    if (!map[row.resource]) map[row.resource] = {};
+    map[row.resource][row.action] = (row.level as PermissionLevel) ?? "N/A";
+  }
+
+  return RESOURCES.map((resource) => ({
+    resource,
+    READ:   (map[resource]?.["READ"])   ?? "N/A",
+    CREATE: (map[resource]?.["CREATE"]) ?? "N/A",
+    UPDATE: (map[resource]?.["UPDATE"]) ?? "N/A",
+    DELETE: (map[resource]?.["DELETE"]) ?? "N/A",
+  }));
+}
+
+export interface PermissionPatch {
+  resource: string;
+  action: string;
+  level: PermissionLevel;
+}
+
+/** Upsert a batch of resource×action level grants for a user (full replacement) */
+export async function setUserPermissionGrid(
+  userId: string,
+  patches: PermissionPatch[],
+) {
+  await prisma.userPermission.deleteMany({ where: { user_id: userId } });
+
+  const data = patches
+    .filter((p) => ACTIONS.includes(p.action as Action) && p.resource && p.level !== "N/A")
+    .map((p) => ({
+      user_id:  userId,
+      resource: p.resource,
+      action:   p.action,
+      level:    p.level,
+    }));
+
+  if (data.length > 0) {
+    await prisma.userPermission.createMany({ data });
+  }
+
+  return getUserPermissionGrid(userId);
 }

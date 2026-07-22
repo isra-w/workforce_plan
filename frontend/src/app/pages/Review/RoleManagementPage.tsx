@@ -1,911 +1,622 @@
 /**
  * pages/Review/RoleManagementPage.tsx
  *
- * HRAdmin-only page for managing user permissions and role access.
- * Lists all users and lets HRAdmin grant or revoke the visible app permissions.
- * It is accessible from the sidebar as "Role Management".
+ * HR_ADMIN page — left panel: role cards, right panel: resource × CRUD grid.
+ * Each cell has a custom floating dropdown with four scope levels:
+ *   N/A  — no permission at all
+ *   Own  — user can act only on their own records
+ *   Team — user can act on their whole department's records
+ *   Any  — full access (own + team + everything else)  ← shown in orange
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { authService } from "../../services/workforceService";
-import {
-  PermissionKey,
-  allPermissionKeys,
-  normalizePermissions,
-} from "../../utils/permissions";
+import { normalizePermissions, PermissionKey } from "../../utils/permissions";
 import { UserRole } from "../../../utils/types";
 import {
-  FiSave,
   FiSearch,
-  FiChevronDown,
-  FiChevronRight,
+  FiSave,
   FiUsers,
   FiSliders,
+  FiChevronDown,
 } from "react-icons/fi";
 import toast from "react-hot-toast";
 
-interface RolePermissionRow {
+// ── Scope type & helpers ──────────────────────────────────────────────────
+
+type Scope = "N/A" | "Own" | "Team" | "Any";
+const SCOPES: Scope[] = ["N/A", "Own", "Team", "Any"];
+
+function scopeLabel(s: Scope) {
+  return s;
+}
+function isActive(s: Scope) {
+  return s !== "N/A";
+}
+
+// ── Types ─────────────────────────────────────────────────────────────────
+
+interface RoleRow {
   role: UserRole;
   permissions: PermissionKey[];
 }
+type Action = "READ" | "CREATE" | "UPDATE" | "DELETE";
+const ACTIONS: Action[] = ["READ", "CREATE", "UPDATE", "DELETE"];
 
-// Map roles to descriptions and static visual properties to match mockup layout
-const ROLE_METADATA: Record<string, { desc: string; isSystem: boolean }> = {
+// ── Resource → permission-key mapping ────────────────────────────────────
+const RESOURCES: Array<{
+  label: string;
+  module: string;
+  keys: Record<Action, PermissionKey | null>;
+}> = [
+  {
+    label: "Dashboard",
+    module: "Core",
+    keys: { READ: "VIEW_DASHBOARD", CREATE: null, UPDATE: null, DELETE: null },
+  },
+  {
+    label: "Workforce Plans",
+    module: "Workforce",
+    keys: {
+      READ: "MANAGE_WORKFORCE_PLANS",
+      CREATE: "MANAGE_WORKFORCE_PLANS",
+      UPDATE: "MANAGE_WORKFORCE_PLANS",
+      DELETE: "MANAGE_WORKFORCE_PLANS",
+    },
+  },
+  {
+    label: "Vacancies",
+    module: "Workforce",
+    keys: { READ: "VIEW_VACANCIES", CREATE: null, UPDATE: null, DELETE: null },
+  },
+  {
+    label: "Candidates",
+    module: "Recruitment",
+    keys: { READ: "VIEW_CANDIDATES", CREATE: null, UPDATE: null, DELETE: null },
+  },
+  {
+    label: "Interviews",
+    module: "Recruitment",
+    keys: { READ: "VIEW_INTERVIEWS", CREATE: null, UPDATE: null, DELETE: null },
+  },
+  {
+    label: "Offers",
+    module: "Recruitment",
+    keys: { READ: "VIEW_OFFERS", CREATE: null, UPDATE: null, DELETE: null },
+  },
+  {
+    label: "Analytics",
+    module: "Reporting",
+    keys: { READ: "VIEW_ANALYTICS", CREATE: null, UPDATE: null, DELETE: null },
+  },
+  {
+    label: "HR Review",
+    module: "Review",
+    keys: { READ: "VIEW_HR_REVIEW", CREATE: null, UPDATE: null, DELETE: null },
+  },
+  {
+    label: "CEO Review",
+    module: "Review",
+    keys: { READ: "VIEW_CEO_REVIEW", CREATE: null, UPDATE: null, DELETE: null },
+  },
+  {
+    label: "Role Management",
+    module: "Admin",
+    keys: {
+      READ: "MANAGE_ROLES",
+      CREATE: "MANAGE_ROLES",
+      UPDATE: "MANAGE_ROLES",
+      DELETE: "MANAGE_ROLES",
+    },
+  },
+  {
+    label: "Permissions",
+    module: "Admin",
+    keys: {
+      READ: "MANAGE_PERMISSIONS",
+      CREATE: "MANAGE_PERMISSIONS",
+      UPDATE: "MANAGE_PERMISSIONS",
+      DELETE: "MANAGE_PERMISSIONS",
+    },
+  },
+];
+
+const MODULES = [
+  "All Modules",
+  ...Array.from(new Set(RESOURCES.map((r) => r.module))),
+];
+
+const ROLE_META: Record<string, { desc: string; isSystem: boolean }> = {
+  WORKFORCE_PLANNER: {
+    desc: "Standard platform permissions and workforce submissions",
+    isSystem: false,
+  },
+  HR: { desc: "HR review and approval workflow access", isSystem: false },
+  CEO: {
+    desc: "Final approver for workforce plans and job postings",
+    isSystem: true,
+  },
+  CANDIDATE: {
+    desc: "Standard platform permissions and basic access",
+    isSystem: false,
+  },
   HR_ADMIN: {
     desc: "Full HR operations and system configuration access",
     isSystem: true,
   },
-  HRAdmin: {
-    desc: "Full HR operations and system configuration access",
-    isSystem: true,
-  },
-  CEO: {
-    desc: "Final approver for workforce plans and high-priority posts",
-    isSystem: true,
-  },
-  WORK_UNIT: {
-    desc: "Operational unit user for workforce submissions",
-    isSystem: true,
-  },
-  DEPARTMENT_MANAGER: {
-    desc: "Initiates workforce planning and recruitment requests",
-    isSystem: false,
-  },
-  DEFAULT: {
-    desc: "Standard platform permissions and basic access",
-    isSystem: false,
-  },
 };
 
+// ── ScopeDropdown ─────────────────────────────────────────────────────────
+// A custom floating dropdown that replaces the native <select>.
+
+interface ScopeDropdownProps {
+  value: Scope;
+  disabled?: boolean;
+  onChange: (v: Scope) => void;
+}
+
+function ScopeDropdown({ value, disabled, onChange }: ScopeDropdownProps) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  // Close when clicking outside
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node))
+        setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  const active = isActive(value);
+
+  return (
+    <div ref={ref} style={{ position: "relative", display: "inline-block" }}>
+      {/* Trigger button */}
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => !disabled && setOpen((o) => !o)}
+        className={`sd-trigger${active ? " sd-active" : ""}${disabled ? " sd-disabled" : ""}`}
+      >
+        <span>{value}</span>
+        <FiChevronDown
+          size={11}
+          className={`sd-chevron${open ? " sd-chevron-open" : ""}`}
+        />
+      </button>
+
+      {/* Floating panel */}
+      {open && (
+        <div className="sd-panel">
+          {SCOPES.map((s) => (
+            <div
+              key={s}
+              className={`sd-option${s === value ? " sd-option-selected" : ""}${isActive(s) && s === "Any" ? " sd-option-any" : ""}`}
+              onClick={() => {
+                onChange(s);
+                setOpen(false);
+              }}
+            >
+              {s}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Main component ────────────────────────────────────────────────────────
+
 export default function RoleManagementPage() {
-  const [roles, setRoles] = useState<RolePermissionRow[]>([]);
+  const [roles, setRoles] = useState<RoleRow[]>([]);
+  const [selected, setSelected] = useState<UserRole | null>(null);
   const [loading, setLoading] = useState(true);
-  const [savingRole, setSavingRole] = useState<UserRole | null>(null);
-
-  // UX State
-  const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
+  const [saving, setSaving] = useState(false);
   const [roleSearch, setRoleSearch] = useState("");
-  const [permissionSearch, setPermissionSearch] = useState("");
-  const [moduleFilter, setModuleFilter] = useState("all");
-  const [collapsedGroups, setCollapsedGroups] = useState<
-    Record<string, boolean>
-  >({});
+  const [permSearch, setPermSearch] = useState("");
+  const [moduleFilter, setModuleFilter] = useState("All Modules");
 
+  // Per-cell scope state: key = `${role}__${resource}__${action}`
+  const [scopes, setScopes] = useState<Record<string, Scope>>({});
+
+  // ── Load roles ──────────────────────────────────────────────────────
   useEffect(() => {
     authService
       .getRolePermissions()
       .then((res) => {
-        const list = res.data.data.roles.map((roleRow: any) => ({
-          role: roleRow.role as UserRole,
-          permissions: normalizePermissions(roleRow.permissions, roleRow.role),
-        }));
+        const list: RoleRow[] = res.data.data.roles.map(
+          (r: { role: UserRole; permissions: PermissionKey[] }) => ({
+            role: r.role,
+            permissions: normalizePermissions(r.permissions, r.role),
+          }),
+        );
         setRoles(list);
-        if (list.length > 0) {
-          setSelectedRole(list[0].role);
+        // Seed scope map: if permission key is in the role's permissions → "Any", else "N/A"
+        const initial: Record<string, Scope> = {};
+        for (const r of list) {
+          for (const res of RESOURCES) {
+            for (const action of ACTIONS) {
+              const key = res.keys[action];
+              const cellKey = `${r.role}__${res.label}__${action}`;
+              initial[cellKey] =
+                key && r.permissions.includes(key) ? "Any" : "N/A";
+            }
+          }
         }
+        setScopes(initial);
+        if (list.length > 0) setSelected(list[0].role);
       })
-      .catch((error) => {
-        console.error(error);
-        toast.error("Failed to load role permissions");
-      })
+      .catch(() => toast.error("Failed to load role permissions"))
       .finally(() => setLoading(false));
   }, []);
 
-  const activeRoleData = roles.find((r) => r.role === selectedRole);
+  const activeRole = roles.find((r) => r.role === selected) ?? null;
 
-  const togglePermission = (role: UserRole, permission: PermissionKey) => {
-    setRoles((prev) =>
-      prev.map((roleRow) => {
-        if (roleRow.role !== role) return roleRow;
-        const has = roleRow.permissions.includes(permission);
-        return {
-          ...roleRow,
-          permissions: has
-            ? roleRow.permissions.filter((p) => p !== permission)
-            : [...roleRow.permissions, permission],
-        };
-      }),
-    );
+  // Get scope for a cell
+  const getScope = (resource: string, action: Action): Scope =>
+    scopes[`${selected}__${resource}__${action}`] ?? "N/A";
+
+  // Set scope for a cell
+  const setScope = (resource: string, action: Action, value: Scope) => {
+    setScopes((prev) => ({
+      ...prev,
+      [`${selected}__${resource}__${action}`]: value,
+    }));
   };
 
-  const grantAllForModule = (role: UserRole, keys: PermissionKey[]) => {
-    setRoles((prev) =>
-      prev.map((roleRow) => {
-        if (roleRow.role !== role) return roleRow;
-        const merged = Array.from(new Set([...roleRow.permissions, ...keys]));
-        return { ...roleRow, permissions: merged };
-      }),
-    );
-  };
-
-  const revokeAllForModule = (role: UserRole, keys: PermissionKey[]) => {
-    setRoles((prev) =>
-      prev.map((roleRow) => {
-        if (roleRow.role !== role) return roleRow;
-        return {
-          ...roleRow,
-          permissions: roleRow.permissions.filter((p) => !keys.includes(p)),
-        };
-      }),
-    );
-  };
-
-  const toggleGroupCollapse = (groupName: string) => {
-    setCollapsedGroups((prev) => ({ ...prev, [groupName]: !prev[groupName] }));
-  };
-
-  const savePermissions = async (roleRow: RolePermissionRow) => {
-    setSavingRole(roleRow.role);
-    try {
-      await authService.updateRolePermissions(
-        roleRow.role,
-        roleRow.permissions,
-      );
-      toast.success("Role permissions updated successfully");
-    } catch (error) {
-      console.error(error);
-      toast.error("Failed to update role permissions");
-    } finally {
-      setSavingRole(null);
-    }
-  };
-
-  // Helper to categorize PermissionKeys into groups/modules
-  const getPermissionGroup = (key: string): string => {
-    if (key.includes(":"))
-      return key.split(":")[0].replace(/_/g, " ").toUpperCase();
-    if (key.includes("_"))
-      return key.split("_")[0].replace(/_/g, " ").toUpperCase();
-    return "APPLICATION";
-  };
-
-  // Grouping, Filtering, and Sorting Permissions
-  const groupedPermissions: Record<string, PermissionKey[]> = {};
-  allPermissionKeys.forEach((key) => {
-    const groupName = getPermissionGroup(key);
-    if (!groupedPermissions[groupName]) {
-      groupedPermissions[groupName] = [];
-    }
-    groupedPermissions[groupName].push(key);
-  });
-
-  const availableModules = Object.keys(groupedPermissions);
-
-  return (
-    <div className="role-management-workspace">
-      {/* Scope specific styling context inside the container wrapper */}
-      <style>{`
-        .role-management-workspace {
-          display: flex;
-          flex-direction: column;
-          gap: 1.5rem;
-          height: 100%;
-          font-family: inherit;
-        }
-        .rm-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          border-bottom: 1px solid #f1f5f9;
-          padding-bottom: 1rem;
-        }
-        .rm-title-wrapper h1 {
-          font-size: 1.5rem;
-          font-weight: 800;
-          color: #0f172a;
-          margin: 0;
-        }
-        .rm-title-wrapper p {
-          font-size: 0.85rem;
-          color: #64748b;
-          margin: 0.25rem 0 0 0;
-        }
-        .rm-split-layout {
-          display: grid;
-          grid-template-columns: 320px 1fr;
-          gap: 1.5rem;
-          align-items: start;
-        }
-        @media (max-width: 1024px) {
-          .rm-split-layout {
-            grid-template-columns: 1fr;
+  // Grant / Revoke all visible cells
+  const setAll = (scope: Scope) => {
+    if (!selected) return;
+    setScopes((prev) => {
+      const next = { ...prev };
+      for (const res of visibleResources) {
+        for (const action of ACTIONS) {
+          if (res.keys[action] !== null) {
+            next[`${selected}__${res.label}__${action}`] = scope;
           }
         }
-        /* LEFT SIDEBAR ROLES LIST */
-        .rm-roles-sidebar {
-          background: #ffffff;
-          border: 1px solid #e2e8f0;
-          border-radius: 1rem;
-          padding: 1.25rem;
-          display: flex;
-          flex-direction: column;
-          gap: 1rem;
+      }
+      return next;
+    });
+  };
+
+  // Save — convert scopes back to flat permission key array
+  const save = async () => {
+    if (!activeRole) return;
+    setSaving(true);
+    try {
+      // Build the new permissions list: include key if scope !== "N/A"
+      const newPerms: PermissionKey[] = [];
+      for (const res of RESOURCES) {
+        for (const action of ACTIONS) {
+          const key = res.keys[action];
+          if (!key) continue;
+          const scope = scopes[`${selected}__${res.label}__${action}`] ?? "N/A";
+          if (scope !== "N/A") newPerms.push(key);
         }
-        .rm-sidebar-heading-row {
-          display: flex;
+      }
+      // Deduplicate
+      const deduped = Array.from(new Set(newPerms));
+      await authService.updateRolePermissions(activeRole.role, deduped);
+      // Update local role permission count
+      setRoles((prev) =>
+        prev.map((r) =>
+          r.role === selected ? { ...r, permissions: deduped } : r,
+        ),
+      );
+      toast.success("Permissions saved");
+    } catch {
+      toast.error("Failed to save permissions");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const visibleResources = RESOURCES.filter((res) => {
+    const matchModule =
+      moduleFilter === "All Modules" || res.module === moduleFilter;
+    const matchSearch = res.label
+      .toLowerCase()
+      .includes(permSearch.toLowerCase());
+    return matchModule && matchSearch;
+  });
+
+  const filteredRoles = roles.filter((r) =>
+    r.role.toLowerCase().includes(roleSearch.toLowerCase()),
+  );
+
+  if (loading)
+    return (
+      <div className="page-loading">
+        <div className="loader-icon" />
+      </div>
+    );
+
+  return (
+    <div className="rm-page">
+      <style>{`
+        /* ── ScopeDropdown ── */
+        .sd-trigger {
+          display: inline-flex; align-items: center; gap: 0.3rem;
+          padding: 0.28rem 0.55rem; min-width: 72px;
+          border: 1px solid #e2e8f0; border-radius: 0.4rem;
+          background: #f8fafc; color: #475569;
+          font-size: 0.76rem; font-weight: 600;
+          cursor: pointer; outline: none;
+          transition: border-color 0.12s, background 0.12s;
           justify-content: space-between;
-          align-items: center;
         }
-        .rm-sidebar-heading-row h2 {
-          font-size: 1.7rem;
-          font-weight: 700;
-          color: #1e293b;
-          margin: 0;
+        .sd-trigger:hover:not(.sd-disabled) { border-color: #cbd5e1; background: #f1f5f9; }
+        .sd-trigger.sd-active { color: #16a34a;}
+        .sd-trigger.sd-disabled { opacity: 0.35; cursor: not-allowed; }
+        .sd-chevron { transition: transform 0.15s; color: currentColor; flex-shrink: 0; }
+        .sd-chevron.sd-chevron-open { transform: rotate(180deg); }
+
+        .sd-panel {
+          position: absolute; top: calc(100% + 4px); left: 0; z-index: 999;
+          background: #fff; border: 1px solid #e2e8f0; border-radius: 0.5rem;
+          box-shadow: 0 4px 16px rgba(0,0,0,0.10);
+          min-width: 90px; overflow: hidden;
         }
-        .rm-new-role-btn {
-          display: inline-flex;
-          align-items: center;
-          gap: 0.25rem;
-          background-color: #16a34a;
-          color: white;
-          font-size: 0.8rem;
-          font-weight: 600;
-          padding: 0.45rem 0.75rem;
-          border-radius: 0.5rem;
-          border: none;
+        .sd-option {
+          padding: 0.42rem 0.75rem;
+          font-size: 0.8rem; font-weight: 500; color: #334155;
           cursor: pointer;
-          transition: background 0.15s;
+          transition: background 0.1s;
         }
-        .rm-new-role-btn:hover {
-          background-color: #15803d;
+        .sd-option:hover { background: #f8fafc; }
+        .sd-option.sd-option-selected { background: #f1f5f9; font-weight: 700; }
+        .sd-option.sd-option-any { color: #16a34a; font-weight: 700; }
+
+        /* ── Page shell ── */
+        .rm-page { display:flex; flex-direction:column; gap:1.25rem; font-family:inherit; }
+        .rm-page-header { border-bottom:1px solid #f1f5f9; padding-bottom:1rem; }
+        .rm-page-header h1 { font-size:1.5rem; font-weight:800; color:#0f172a; margin:0; }
+        .rm-page-header p  { font-size:0.85rem; color:#64748b; margin:.2rem 0 0; }
+
+        .rm-layout { display:grid; grid-template-columns:240px 1fr; gap:1.25rem; align-items:start; }
+        @media(max-width:900px){ .rm-layout{ grid-template-columns:1fr; } }
+
+        /* ── Left sidebar ── */
+        .rm-sidebar {
+          background:#fff; border:1px solid #e2e8f0; border-radius:1rem;
+          padding:1.25rem; display:flex; flex-direction:column; gap:.875rem;
         }
-        .rm-editing-status-label {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-top: 0.5rem;
+        .rm-sidebar-top { display:flex; justify-content:space-between; align-items:center; }
+        .rm-sidebar-top h2 { font-size:1.1rem; font-weight:800; color:#0f172a; margin:0; }
+        .rm-new-btn {
+          display:inline-flex; align-items:center; gap:.25rem;
+          background:#16a34a; color:#fff; font-size:.75rem; font-weight:700;
+          padding:.35rem .65rem; border-radius:.5rem; border:none; cursor:pointer;
         }
-        .rm-status-text {
-          font-size: 0.7rem;
-          font-weight: 700;
-          color: #16a34a;
-          letter-spacing: 0.05em;
+        .rm-new-btn:hover { background:#ea580c; }
+        .rm-search { position:relative; }
+        .rm-search svg { position:absolute; left:.6rem; top:50%; transform:translateY(-50%); color:#94a3b8; pointer-events:none; }
+        .rm-search input {
+          width:100%; padding:.45rem .75rem .45rem 1.9rem;
+          border:1px solid #e2e8f0; border-radius:.5rem;
+          font-size:.8rem; background:#f8fafc; outline:none; box-sizing:border-box;
         }
-        .rm-status-badge {
-          font-size: 1rem;
-          font-weight: 700;
-          background: #eff6ff;
-          color: #1d4ed8;
-          padding: 0.15rem 0.4rem;
-          border-radius: 0.25rem;
-          text-transform: uppercase;
-        }
-        .rm-search-box {
-          position: relative;
-        }
-        .rm-search-icon {
-          position: absolute;
-          left: 0.75rem;
-          top: 50%;
-          transform: translateY(-50%);
-          color: #94a3b8;
-          font-size: 0.9rem;
-        }
-        .rm-search-input {
-          width: 100%;
-          padding: 0.55rem 0.75rem 0.55rem 2.25rem;
-          border-radius: 0.5rem;
-          border: 1px solid #e2e8f0;
-          background-color: #f8fafc;
-          font-size: 0.85rem;
-          outline: none;
-          transition: border-color 0.15s, background-color 0.15s;
-        }
-        .rm-search-input:focus {
-          border-color: #16a34a;
-          background-color: #ffffff;
-        }
-        .rm-roles-list-cards {
-          display: flex;
-          flex-direction: column;
-          gap: 0.75rem;
-        }
+        .rm-search input:focus { border-color:#16a34a; background:#fff; }
+        .rm-role-list { display:flex; flex-direction:column; gap:.5rem; }
         .rm-role-card {
-          background: #ffffff;
-          border: 1px solid #e2e8f0;
-          border-radius: 0.75rem;
-          padding: 1rem;
-          cursor: pointer;
-          transition: border-color 0.15s, box-shadow 0.15s;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
+          border:1.5px solid #e2e8f0; border-radius:.75rem; padding:.85rem 1rem;
+          cursor:pointer; display:flex; justify-content:space-between; align-items:center;
+          transition:border-color .15s, background .15s;
         }
-        .rm-role-card:hover {
-          border-color: #cbd5e1;
-        }
-        .rm-role-card.active {
-          border: 2px solid #16a34a;
-          background: #fcfdfd;
-        }
-        .rm-role-card-info {
-          flex: 1;
-          min-width: 0;
-          padding-right: 0.5rem;
-        }
-        .rm-role-title-row {
-          display: flex;
-          align-items: center;
-          gap: 0.4rem;
-          flex-wrap: wrap;
-        }
-        .rm-role-card-name {
-          font-size: 0.825rem;
-          font-weight: 700;
-          color: #0f172a;
-          text-transform: uppercase;
-        }
+        .rm-role-card:hover { background:#fafafa; }
+        .rm-role-info { flex:1; min-width:0; }
+        .rm-role-name { font-size:.8rem; font-weight:800; color:#0f172a; text-transform:uppercase; }
         .rm-system-tag {
-          font-size: 0.6rem;
-          font-weight: 700;
-          background: #fef3c7;
-          color: #d97706;
-          padding: 0.1rem 0.3rem;
-          border-radius: 0.25rem;
-          text-transform: uppercase;
+          display:inline-block; font-size:.6rem; font-weight:700;
+          background:#fef3c7; color:#d97706; padding:.08rem .3rem;
+          border-radius:.25rem; margin-left:.35rem; vertical-align:middle;
         }
-        .rm-role-card-desc {
-          font-size: 0.75rem;
-          color: #64748b;
-          margin-top: 0.25rem;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-        .rm-role-perm-count {
-          display: flex;
-          align-items: center;
-          gap: 0.25rem;
-          font-size: 0.72rem;
-          color: #64748b;
-          margin-top: 0.4rem;
-        }
-        .rm-role-card-icon-wrapper {
-          width: 2rem;
-          height: 2rem;
-          border-radius: 50%;
-          background: #f1f5f9;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: #64748b;
-          flex-shrink: 0;
-        }
-        .rm-role-card.active .rm-role-card-icon-wrapper {
-          background: #dcfce7;
-          color: #16a34a;
-        }
+        .rm-role-desc { font-size:.72rem; color:#64748b; margin:.2rem 0 0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:160px; }
+        .rm-role-count { font-size:.7rem; color:#64748b; margin-top:.3rem; }
+        .rm-role-icon { width:1.8rem; height:1.8rem; border-radius:50%; background:#f1f5f9; display:flex; align-items:center; justify-content:center; color:#64748b; flex-shrink:0; }
+        .rm-role-card.active .rm-role-icon { background:#fed7aa; color:#16a34a; }
 
-        /* RIGHT MATRIX PANEL */
-        .rm-matrix-panel {
-          background: #ffffff;
-          border: 1px solid #e2e8f0;
-          border-radius: 1rem;
-          padding: 1.5rem;
-        }
-        .rm-matrix-header-row {
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-start;
-          flex-wrap: wrap;
-          gap: 1rem;
-          border-bottom: 1px solid #f1f5f9;
-          padding-bottom: 1.25rem;
-        }
-        .rm-matrix-meta-label {
-          font-size: 0.7rem;
-          font-weight: 700;
-          color: #16a34a;
-          letter-spacing: 0.05em;
-          display: flex;
-          align-items: center;
-          gap: 0.35rem;
-        }
-        .rm-matrix-role-badge {
-          font-size: 0.65rem;
-          font-weight: 700;
-          background: #fef3c7;
-          color: #d97706;
-          padding: 0.1rem 0.4rem;
-          border-radius: 0.25rem;
-          text-transform: uppercase;
-        }
-        .rm-matrix-role-title {
-          font-size: 1.35rem;
-          font-weight: 800;
-          color: #0f172a;
-          margin: 0.25rem 0 0 0;
-        }
-        .rm-matrix-role-desc {
-          font-size: 0.8rem;
-          color: #64748b;
-          margin: 0.25rem 0 0 0;
-        }
-        .rm-save-changes-btn {
-          display: inline-flex;
-          align-items: center;
-          gap: 0.5rem;
-          background-color: #0f172a;
-          color: white;
-          font-size: 0.85rem;
-          font-weight: 600;
-          padding: 0.55rem 1rem;
-          border-radius: 0.5rem;
-          border: none;
-          cursor: pointer;
-          transition: background 0.15s;
-        }
-        .rm-save-changes-btn:hover:not(:disabled) {
-          background-color: #1e293b;
-        }
-        .rm-save-changes-btn:disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
-        }
-        .rm-matrix-filters-row {
-          display: flex;
-          gap: 0.75rem;
-          margin: 1rem 0 1.5rem 0;
-          flex-wrap: wrap;
-        }
-        .rm-perm-search-box {
-          flex: 1;
-          position: relative;
-          min-width: 240px;
-        }
-        .rm-module-select {
-          padding: 0.55rem 2rem 0.55rem 0.75rem;
-          border-radius: 0.5rem;
-          border: 1px solid #e2e8f0;
-          background-color: #ffffff;
-          font-size: 0.85rem;
-          color: #1e293b;
-          outline: none;
-          appearance: none;
-          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
-          background-repeat: no-repeat;
-          background-position: right 0.65rem center;
-          cursor: pointer;
-          min-width: 160px;
-        }
+        /* ── Right panel ── */
+        .rm-panel { background:#fff; border:1px solid #e2e8f0; border-radius:1rem; padding:1.5rem; display:flex; flex-direction:column; gap:1rem; }
+        .rm-panel-header { display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:.75rem; border-bottom:1px solid #f1f5f9; padding-bottom:1rem; }
+        .rm-panel-meta { font-size:.68rem; font-weight:700; color:#16a34a; letter-spacing:.06em; text-transform:uppercase; }
+        .rm-panel-title { font-size:1.25rem; font-weight:800; color:#0f172a; margin:.15rem 0 0; }
+        .rm-panel-desc  { font-size:.78rem; color:#64748b; margin:.1rem 0 0; }
+        .rm-save-btn { display:inline-flex; align-items:center; gap:.4rem; background:#0f172a; color:#fff; font-size:.82rem; font-weight:600; padding:.5rem 1rem; border-radius:.5rem; border:none; cursor:pointer; white-space:nowrap; }
+        .rm-save-btn:hover:not(:disabled) { background:#1e293b; }
+        .rm-save-btn:disabled { opacity:.55; cursor:not-allowed; }
 
-        /* ACCORDION GROUPS */
-        .rm-accordion-group {
-          border: 1px solid #e2e8f0;
-          border-radius: 0.75rem;
-          margin-bottom: 1rem;
-          overflow: hidden;
-        }
-        .rm-accordion-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 0.875rem 1.25rem;
-          background: #f8fafc;
-          border-bottom: 1px solid #e2e8f0;
-          cursor: pointer;
-          user-select: none;
-        }
-        .rm-accordion-header-left {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-        }
-        .rm-accordion-chevron {
-          color: #64748b;
-          display: flex;
-          align-items: center;
-        }
-        .rm-accordion-title {
-          font-size: 0.85rem;
-          font-weight: 700;
-          color: #0f172a;
-          letter-spacing: 0.03em;
-        }
-        .rm-accordion-enabled-badge {
-          font-size: 0.7rem;
-          font-weight: 600;
-          background: #dcfce7;
-          color: #16a34a;
-          padding: 0.15rem 0.5rem;
-          border-radius: 9999px;
-        }
-        .rm-accordion-enabled-badge.muted {
-          background: #f1f5f9;
-          color: #64748b;
-        }
-        .rm-accordion-actions {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-        }
-        .rm-acc-action-btn {
-          font-size: 0.78rem;
-          font-weight: 600;
-          padding: 0.3rem 0.65rem;
-          border-radius: 0.35rem;
-          border: none;
-          cursor: pointer;
-          transition: background 0.1s, color 0.1s;
-        }
-        .rm-acc-action-btn.grant {
-          background: #f1f5f9;
-          color: #334155;
-        }
-        .rm-acc-action-btn.grant:hover {
-          background: #e2e8f0;
-        }
-        .rm-acc-action-btn.revoke {
-          background: #fee2e2;
-          color: #dc2626;
-        }
-        .rm-acc-action-btn.revoke:hover {
-          background: #fecaca;
-        }
-        .rm-accordion-content {
-          background: #ffffff;
-        }
-        
-        /* INDIVIDUAL PERMISSION ROWS */
-        .rm-perm-item-row {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 1rem 1.25rem;
-          border-bottom: 1px solid #f1f5f9;
-        }
-        .rm-perm-item-row:last-child {
-          border-bottom: none;
-        }
-        .rm-perm-item-left {
-          flex: 1;
-          min-width: 0;
-          padding-right: 1rem;
-        }
-        .rm-perm-item-name {
-          font-size: 0.85rem;
-          font-weight: 700;
-          color: #0f172a;
-        }
-        .rm-perm-item-desc {
-          font-size: 0.78rem;
-          color: #64748b;
-          margin-top: 0.15rem;
-        }
-        
-        /* TOGGLE PILL BUTTON */
-        .rm-toggle-pill {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          min-width: 80px;
-          padding: 0.35rem 0.75rem;
-          font-size: 0.72rem;
-          font-weight: 700;
-          border-radius: 9999px;
-          cursor: pointer;
-          border: 1px solid transparent;
-          transition: all 0.15s;
-          user-select: none;
-          text-transform: uppercase;
-        }
-        .rm-toggle-pill.allowed {
-          background-color: #16a34a;
-          color: white;
-          border-color: #16a34a;
-        }
-        .rm-toggle-pill.allowed:hover {
-          background-color: #15803d;
-        }
-        .rm-toggle-pill.denied {
-          background-color: #f1f5f9;
-          color: #64748b;
-          border-color: #cbd5e1;
-        }
-        .rm-toggle-pill.denied:hover {
-          background-color: #e2e8f0;
-          color: #334155;
-        }
-        .rm-spinner {
-          width: 0.9rem;
-          height: 0.9rem;
-          border: 2px solid rgba(255, 255, 255, 0.3);
-          border-top-color: white;
-          border-radius: 50%;
-          animation: spin 0.6s linear infinite;
-        }
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
+        .rm-filters { display:flex; gap:.75rem; flex-wrap:wrap; align-items:center; }
+        .rm-module-select { padding:.45rem 2rem .45rem .7rem; border:1px solid #e2e8f0; border-radius:.5rem; font-size:.82rem; background:#fff; outline:none; appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right .6rem center; cursor:pointer; min-width:140px; }
+
+        .rm-grant-row { display:flex; justify-content:flex-end; gap:.5rem; padding:.5rem 0; border-bottom:1px solid #f1f5f9; }
+        .rm-grant-btn { font-size:.75rem; font-weight:700; padding:.3rem .75rem; border-radius:.4rem; border:none; cursor:pointer; }
+        .rm-grant-btn.grant { background:#dcfce7; color:#15803d; }
+        .rm-grant-btn.grant:hover { background:#bbf7d0; }
+        .rm-grant-btn.revoke { background:#fee2e2; color:#dc2626; }
+        .rm-grant-btn.revoke:hover { background:#fecaca; }
+
+        .rm-table-scroll { overflow-x:auto; }
+        .rm-table { width:100%; border-collapse:collapse; font-size:.82rem; }
+        .rm-table th { text-align:left; font-weight:700; color:#334155; padding:.6rem .875rem; background:#f8fafc; border-bottom:2px solid #e2e8f0; white-space:nowrap; }
+        .rm-table th:first-child { min-width:160px; }
+        .rm-table th:not(:first-child) { text-align:center; min-width:100px; }
+        .rm-table td { padding:.55rem .875rem; border-bottom:1px solid #f8fafc; vertical-align:middle; }
+        .rm-table td:not(:first-child) { text-align:center; }
+        .rm-table tr:hover td { background:#fafafa; }
+        .rm-resource-name { font-weight:500; color:#1e293b; }
+
+        .rm-spin { width:.8rem; height:.8rem; border-radius:50%; border:2px solid rgba(255,255,255,.3); border-top-color:#fff; animation:rm-spin .6s linear infinite; display:inline-block; }
+        @keyframes rm-spin { to { transform:rotate(360deg); } }
+        .rm-empty { padding:2rem; text-align:center; color:#94a3b8; font-size:.85rem; }
       `}</style>
 
-      {/* Main Header */}
-      <div className="rm-header">
-        <div className="rm-title-wrapper">
-          <h1>Role Management</h1>
-          <p>
-            Manage company roles and their access permissions. System roles
-            cannot be deleted.
-          </p>
-        </div>
+      {/* page header */}
+      <div className="rm-page-header">
+        <h1>Role Management</h1>
+        <p>Manage company roles and their resource-level access permissions.</p>
       </div>
 
-      {loading ? (
-        <div className="page-loading">
-          <div className="loader-icon" />
+      <div className="rm-layout">
+        {/* ── LEFT: role list ── */}
+        <div className="rm-sidebar">
+          <div className="rm-sidebar-top">
+            <h2>Roles</h2>
+            <button
+              className="rm-new-btn"
+              onClick={() => toast("Contact super admin to create new roles.")}
+            >
+              + New Role
+            </button>
+          </div>
+          <div className="rm-search">
+            <FiSearch size={13} />
+            <input
+              placeholder="Search roles..."
+              value={roleSearch}
+              onChange={(e) => setRoleSearch(e.target.value)}
+            />
+          </div>
+          <div className="rm-role-list">
+            {filteredRoles.map((r) => {
+              const meta = ROLE_META[r.role] ?? ROLE_META["WORKFORCE_PLANNER"];
+              const isAct = r.role === selected;
+              return (
+                <div
+                  key={r.role}
+                  className={`rm-role-card${isAct ? " active" : ""}`}
+                  onClick={() => setSelected(r.role)}
+                >
+                  <div className="rm-role-info">
+                    <div className="rm-role-name">
+                      {r.role.replace(/_/g, " ")}
+                      {meta.isSystem && (
+                        <span className="rm-system-tag">SYSTEM</span>
+                      )}
+                    </div>
+                    <div className="rm-role-desc">{meta.desc}</div>
+                    <div className="rm-role-count">
+                      🔑 {r.permissions.length} permissions
+                    </div>
+                  </div>
+                  <div className="rm-role-icon">
+                    {isAct ? <FiSliders size={13} /> : <FiUsers size={13} />}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
-      ) : (
-        <div className="rm-split-layout">
-          {/* LEFT SIDEBAR: ROLES SELECTOR */}
-          <div className="rm-roles-sidebar">
-            <div className="rm-sidebar-heading-row">
-              <h2>Roles</h2>
-              <button
-                className="rm-new-role-btn"
-                onClick={() => toast.success("Creation workflow loaded")}
-              >
-                <span>+</span> New Role
+
+        {/* ── RIGHT: resource × CRUD grid ── */}
+        {activeRole ? (
+          <div className="rm-panel">
+            <div className="rm-panel-header">
+              <div>
+                <div className="rm-panel-meta">ROLE PERMISSIONS</div>
+                <div className="rm-panel-title">
+                  {activeRole.role.replace(/_/g, " ")}
+                </div>
+                <div className="rm-panel-desc">
+                  {
+                    (
+                      ROLE_META[activeRole.role] ??
+                      ROLE_META["WORKFORCE_PLANNER"]
+                    ).desc
+                  }
+                </div>
+              </div>
+              <button className="rm-save-btn" onClick={save} disabled={saving}>
+                {saving ? <span className="rm-spin" /> : <FiSave size={14} />}
+                Save Changes
               </button>
             </div>
 
-            <div className="rm-editing-status-label">
-              <span className="rm-status-text">CURRENTLY EDITING</span>
-              {selectedRole && (
-                <span className="rm-status-badge">
-                  {selectedRole.replace(/_/g, " ")}
-                </span>
-              )}
+            {/* filters */}
+            <div className="rm-filters">
+              <div className="rm-search" style={{ flex: 1, minWidth: 220 }}>
+                <FiSearch size={13} />
+                <input
+                  placeholder="Search resources (name or code)..."
+                  value={permSearch}
+                  onChange={(e) => setPermSearch(e.target.value)}
+                />
+              </div>
+              <select
+                className="rm-module-select"
+                value={moduleFilter}
+                onChange={(e) => setModuleFilter(e.target.value)}
+              >
+                {MODULES.map((m) => (
+                  <option key={m}>{m}</option>
+                ))}
+              </select>
             </div>
 
-            {/* Role Search */}
-            <div className="rm-search-box">
-              <FiSearch className="rm-search-icon" />
-              <input
-                type="text"
-                placeholder="Search roles..."
-                className="rm-search-input"
-                value={roleSearch}
-                onChange={(e) => setRoleSearch(e.target.value)}
-              />
+            {/* grant / revoke all */}
+            <div className="rm-grant-row">
+              <button
+                className="rm-grant-btn grant"
+                onClick={() => setAll("Any")}
+              >
+                Grant All
+              </button>
+              <button
+                className="rm-grant-btn revoke"
+                onClick={() => setAll("N/A")}
+              >
+                Revoke All
+              </button>
             </div>
 
-            {/* Role Cards List */}
-            <div className="rm-roles-list-cards">
-              {roles
-                .filter((roleRow) =>
-                  roleRow.role.toLowerCase().includes(roleSearch.toLowerCase()),
-                )
-                .map((roleRow) => {
-                  const meta =
-                    ROLE_METADATA[roleRow.role] || ROLE_METADATA.DEFAULT;
-                  const isActive = roleRow.role === selectedRole;
-                  const displayLabel = roleRow.role.replace(/_/g, " ");
-
-                  return (
-                    <div
-                      key={roleRow.role}
-                      className={`rm-role-card ${isActive ? "active" : ""}`}
-                      onClick={() => setSelectedRole(roleRow.role)}
-                    >
-                      <div className="rm-role-card-info">
-                        <div className="rm-role-title-row">
-                          <span className="rm-role-card-name">
-                            {displayLabel}
-                          </span>
-                          {meta.isSystem && (
-                            <span className="rm-system-tag">SYSTEM</span>
-                          )}
-                        </div>
-                        <div className="rm-role-card-desc">{meta.desc}</div>
-                        <div className="rm-role-perm-count">
-                          <span>🔑</span> {roleRow.permissions.length}{" "}
-                          permissions
-                        </div>
-                      </div>
-                      <div className="rm-role-card-icon-wrapper">
-                        {isActive ? (
-                          <FiSliders size={14} />
-                        ) : (
-                          <FiUsers size={14} />
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
+            {/* table */}
+            <div className="rm-table-scroll">
+              <table className="rm-table">
+                <thead>
+                  <tr>
+                    <th>Resources</th>
+                    <th>Read</th>
+                    <th>Create</th>
+                    <th>Update</th>
+                    <th>Delete</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleResources.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="rm-empty">
+                        No resources match.
+                      </td>
+                    </tr>
+                  )}
+                  {visibleResources.map((res) => (
+                    <tr key={res.label}>
+                      <td className="rm-resource-name">{res.label}</td>
+                      {ACTIONS.map((action) => (
+                        <td key={action}>
+                          <ScopeDropdown
+                            value={getScope(res.label, action)}
+                            disabled={res.keys[action] === null}
+                            onChange={(v) => setScope(res.label, action, v)}
+                          />
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
-
-          {/* RIGHT PANEL: ROLE PERMISSIONS MATRIX */}
-          {activeRoleData && (
-            <div className="rm-matrix-panel">
-              {/* Header inside Matrix Panel */}
-              <div className="rm-matrix-header-row">
-                <div>
-                  <div className="rm-matrix-meta-label">
-                    <span>ROLE MANAGEMENT MATRIX</span>
-                    {(
-                      ROLE_METADATA[activeRoleData.role] ||
-                      ROLE_METADATA.DEFAULT
-                    ).isSystem && (
-                      <span className="rm-matrix-role-badge">SYSTEM ROLE</span>
-                    )}
-                  </div>
-                  <h2 className="rm-matrix-role-title">
-                    {activeRoleData.role.replace(/_/g, " ")}
-                  </h2>
-                  <p className="rm-matrix-role-desc">
-                    {
-                      (
-                        ROLE_METADATA[activeRoleData.role] ||
-                        ROLE_METADATA.DEFAULT
-                      ).desc
-                    }
-                  </p>
-                </div>
-
-                <button
-                  className="rm-save-changes-btn"
-                  disabled={savingRole === activeRoleData.role}
-                  onClick={() => savePermissions(activeRoleData)}
-                >
-                  {savingRole === activeRoleData.role ? (
-                    <div className="rm-spinner" />
-                  ) : (
-                    <FiSave size={15} />
-                  )}
-                  <span>Save Changes</span>
-                </button>
-              </div>
-
-              {/* Filtering Controls */}
-              <div className="rm-matrix-filters-row">
-                <div className="rm-perm-search-box">
-                  <FiSearch className="rm-search-icon" />
-                  <input
-                    type="text"
-                    placeholder="Search permissions..."
-                    className="rm-search-input"
-                    value={permissionSearch}
-                    onChange={(e) => setPermissionSearch(e.target.value)}
-                  />
-                </div>
-
-                <select
-                  className="rm-module-select"
-                  value={moduleFilter}
-                  onChange={(e) => setModuleFilter(e.target.value)}
-                >
-                  <option value="all">All Modules</option>
-                  {availableModules.map((mod) => (
-                    <option key={mod} value={mod}>
-                      {mod}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Permissions Accordions */}
-              {availableModules
-                .filter((mod) => moduleFilter === "all" || moduleFilter === mod)
-                .map((groupName) => {
-                  const allGroupKeys = groupedPermissions[groupName];
-
-                  // Filter individual group items by search string
-                  const filteredKeys = allGroupKeys.filter((key) =>
-                    key.toLowerCase().includes(permissionSearch.toLowerCase()),
-                  );
-
-                  if (filteredKeys.length === 0) return null;
-
-                  const isCollapsed = !!collapsedGroups[groupName];
-                  const activeCount = filteredKeys.filter((key) =>
-                    activeRoleData.permissions.includes(key),
-                  ).length;
-
-                  return (
-                    <div className="rm-accordion-group" key={groupName}>
-                      {/* Accordion Trigger */}
-                      <div className="rm-accordion-header">
-                        <div
-                          className="rm-accordion-header-left"
-                          onClick={() => toggleGroupCollapse(groupName)}
-                        >
-                          <span className="rm-accordion-chevron">
-                            {isCollapsed ? (
-                              <FiChevronRight size={16} />
-                            ) : (
-                              <FiChevronDown size={16} />
-                            )}
-                          </span>
-                          <span className="rm-accordion-title">
-                            {groupName}
-                          </span>
-                          <span
-                            className={`rm-accordion-enabled-badge ${activeCount === 0 ? "muted" : ""}`}
-                          >
-                            {activeCount} / {filteredKeys.length} Enabled
-                          </span>
-                        </div>
-
-                        <div className="rm-accordion-actions">
-                          <button
-                            type="button"
-                            className="rm-acc-action-btn grant"
-                            onClick={() =>
-                              grantAllForModule(
-                                activeRoleData.role,
-                                filteredKeys,
-                              )
-                            }
-                          >
-                            Grant All
-                          </button>
-                          <button
-                            type="button"
-                            className="rm-acc-action-btn revoke"
-                            onClick={() =>
-                              revokeAllForModule(
-                                activeRoleData.role,
-                                filteredKeys,
-                              )
-                            }
-                          >
-                            Revoke All
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Expandable permission row list */}
-                      {!isCollapsed && (
-                        <div className="rm-accordion-content">
-                          {filteredKeys.map((permissionKey) => {
-                            const isAllowed =
-                              activeRoleData.permissions.includes(
-                                permissionKey,
-                              );
-
-                            // Humanize labels e.g. "Application:Read" or "PLAN_CREATE" -> "Read Applications"
-                            const prettyName = permissionKey.includes(":")
-                              ? permissionKey.split(":")[1]
-                              : permissionKey.replace(/_/g, " ");
-
-                            return (
-                              <div
-                                className="rm-perm-item-row"
-                                key={permissionKey}
-                              >
-                                <div className="rm-perm-item-left">
-                                  <div className="rm-perm-item-name">
-                                    {permissionKey}
-                                  </div>
-                                  <div className="rm-perm-item-desc">
-                                    Enables action access for{" "}
-                                    {prettyName.toLowerCase()}.
-                                  </div>
-                                </div>
-
-                                <div
-                                  className={`rm-toggle-pill ${isAllowed ? "allowed" : "denied"}`}
-                                  onClick={() =>
-                                    togglePermission(
-                                      activeRoleData.role,
-                                      permissionKey,
-                                    )
-                                  }
-                                >
-                                  {isAllowed ? "Allowed" : "Denied"}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-            </div>
-          )}
-        </div>
-      )}
+        ) : (
+          <div className="rm-panel rm-empty">
+            Select a role to manage permissions.
+          </div>
+        )}
+      </div>
     </div>
   );
 }

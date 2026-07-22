@@ -19,16 +19,21 @@ async function main() {
 
   // ── 1. Departments ────────────────────────────────────────────────────────
   const departments = [
-    { name: "Software",          code: "SW",   approved_hc: 170, current_hc: 128 },
-    { name: "Finance",           code: "FIN",  approved_hc: 180, current_hc: 165 },
-    { name: "Marketing",         code: "MKT",  approved_hc: 450, current_hc: 412 },
-    { name: "Import and Export", code: "I&E",  approved_hc: 120, current_hc: 115 },
-    { name: "Technology",        code: "TECH", approved_hc: 170, current_hc: 128 },
+    { name: "Software", code: "SW", approved_hc: 100, current_hc: 28 },
+    { name: "Finance", code: "FIN", approved_hc: 100, current_hc: 65 },
+    { name: "Marketing", code: "MKT", approved_hc: 400, current_hc: 42 },
+    {
+      name: "Import and Export",
+      code: "I&E",
+      approved_hc: 100,
+      current_hc: 15,
+    },
+    { name: "Technology", code: "TECH", approved_hc: 100, current_hc: 0 },
   ];
 
   for (const d of departments) {
     await prisma.department.upsert({
-      where:  { name: d.name },
+      where: { name: d.name },
       update: d,
       create: d,
     });
@@ -53,13 +58,13 @@ async function main() {
   if (planner && financeDept) {
     // Draft plan linked to Finance department
     const existingPlan = await prisma.workforcePlan.findFirst({
-      where: { title: "FY2025 Finance Department Expansion" },
+      where: { title: "Finance Department Expansion" },
     });
 
     if (!existingPlan) {
       const plan = await prisma.workforcePlan.create({
         data: {
-          title: "FY2025 Finance Department Expansion",
+          title: "Finance Department Expansion",
           department_id: financeDept.id,
           fiscal_year: 2025,
           planning_period: "ANNUAL",
@@ -71,8 +76,18 @@ async function main() {
           created_by_id: planner.id,
           positions: {
             create: [
-              { title: "Senior Financial Analyst", count: 2, employment_type: "FULL_TIME", priority: "HIGH" },
-              { title: "Finance Officer",           count: 3, employment_type: "FULL_TIME", priority: "MEDIUM" },
+              {
+                title: "Senior Financial Analyst",
+                count: 2,
+                employment_type: "FULL_TIME",
+                priority: "HIGH",
+              },
+              {
+                title: "Finance Officer",
+                count: 3,
+                employment_type: "FULL_TIME",
+                priority: "MEDIUM",
+              },
             ],
           },
         },
@@ -80,9 +95,9 @@ async function main() {
 
       await prisma.planVersion.create({
         data: {
-          plan_id:       plan.id,
-          version:       1,
-          snapshot:      plan as object,
+          plan_id: plan.id,
+          version: 1,
+          snapshot: plan as object,
           created_by_id: planner.id,
         },
       });
@@ -95,19 +110,30 @@ async function main() {
       await prisma.workforcePlan
         .create({
           data: {
-            title:           "Q3 Marketing Expansion Plan",
-            department_id:   marketingDept.id,
-            fiscal_year:     2025,
+            title: "Q3 Marketing Expansion Plan",
+            department_id: marketingDept.id,
+            fiscal_year: 2025,
             planning_period: "QUARTERLY",
-            quarter:         3,
-            justification:   "Scaling the marketing team for new product launch campaigns in Q3.",
-            status:          "SUBMITTED" as PlanStatus,
-            version:         1,
-            created_by_id:   planner.id,
+            quarter: 3,
+            justification:
+              "Scaling the marketing team for new product launch campaigns in Q3.",
+            status: "SUBMITTED" as PlanStatus,
+            version: 1,
+            created_by_id: planner.id,
             positions: {
               create: [
-                { title: "Marketing Manager",           count: 2, employment_type: "FULL_TIME", priority: "HIGH" },
-                { title: "Digital Marketing Specialist", count: 3, employment_type: "FULL_TIME", priority: "MEDIUM" },
+                {
+                  title: "Marketing Manager",
+                  count: 2,
+                  employment_type: "FULL_TIME",
+                  priority: "HIGH",
+                },
+                {
+                  title: "Digital Marketing Specialist",
+                  count: 3,
+                  employment_type: "FULL_TIME",
+                  priority: "MEDIUM",
+                },
               ],
             },
           },
@@ -119,7 +145,7 @@ async function main() {
   } else {
     console.log(
       "⚠ No WORKFORCE_PLANNER user found — sample plans skipped. " +
-      "Register a user via the app then re-run the seed.",
+        "Register a user via the app then re-run the seed.",
     );
   }
 
