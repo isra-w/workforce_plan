@@ -4,35 +4,6 @@
  * A reusable button component that extends the native <button> element with
  * variant styling, a loading spinner, optional full-width layout, and a
  * leading icon slot.
- *
- * Props (extends all standard <button> HTML attributes):
- *   variant    "primary" | "secondary" | "ghost" | "danger"
- *              Controls the colour scheme. Defaults to "primary" (green).
- *              Mapped to CSS classes: btn-primary, btn-secondary, btn-ghost, btn-danger.
- *
- *   loading    boolean — when true, replaces the icon with a spinning animation
- *              (.btn-spinner) and disables the button to prevent double-submits.
- *
- *   fullWidth  boolean — when true, adds the .btn-full-width class so the
- *              button stretches to fill its container.
- *
- *   icon       ReactNode — an element (usually a Feather icon) displayed to the
- *              left of the children text. Hidden when loading is true.
- *
- *   children   ReactNode — the button label text.
- *
- *   className  string — extra CSS classes merged onto the button element.
- *
- *   disabled   boolean — native disabled attribute; also auto-set when loading.
- *
- *   ...props   All other standard button attributes (onClick, type, etc.) are
- *              spread directly onto the <button>.
- *
- * Usage examples:
- *   <Button>Save Draft</Button>
- *   <Button variant="danger" icon={<FiTrash2 />}>Delete</Button>
- *   <Button loading={saving} variant="primary">Submit for Approval</Button>
- *   <Button variant="secondary" fullWidth>Cancel</Button>
  */
 import { ButtonHTMLAttributes, ReactNode } from "react";
 
@@ -42,6 +13,13 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   fullWidth?: boolean;
   icon?: ReactNode;
 }
+
+const variantClasses: Record<string, string> = {
+  primary: "bg-green-600 text-white hover:bg-green-700",
+  secondary: "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50",
+  ghost: "bg-transparent text-gray-600 hover:bg-gray-100",
+  danger: "bg-red-600 text-white hover:bg-red-700",
+};
 
 export default function Button({
   variant = "primary",
@@ -53,19 +31,14 @@ export default function Button({
   disabled,
   ...props
 }: ButtonProps) {
-  // Maps the variant prop to its corresponding CSS modifier class
-  const variantClass = `btn-${variant}`;
-
   return (
     <button
-      className={`btn ${variantClass} ${fullWidth ? "btn-full-width" : ""} ${className}`}
-      // Disabled when explicitly disabled OR while a loading operation is in progress
+      className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${variantClasses[variant]} ${fullWidth ? "w-full" : ""} ${className}`}
       disabled={disabled || loading}
       {...props}
     >
-      {/* Show spinner during loading; otherwise show the icon (if provided) */}
       {loading ? (
-        <span className="btn-spinner" />
+        <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
       ) : (
         icon
       )}

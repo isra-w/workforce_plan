@@ -2,31 +2,6 @@
  * components/auth/SignupForm.tsx
  *
  * Two-step registration form rendered inside AuthLayout.
- *
- * Step 1 — Collect user details:
- *   Full name, email, role (from ROLES constant), password, confirm password.
- *   Client-side validation enforces a minimum password length of 8 characters
- *   and checks that both password fields match before advancing to step 2.
- *
- * Step 2 — Confirmation screen:
- *   Shows an informational note explaining that a verification email will be
- *   sent. The user can go back to step 1 or click "Create Account" to submit.
- *
- * Submission (handleSubmit):
- *   Calls register() from AuthContext (POST /auth/register).
- *   On success it navigates to /verify-email and passes the email address and
- *   the raw verificationToken in router state so the verify page can use them.
- *   On failure it shows the server error message as a toast.
- *
- * State:
- *   step            1 or 2 — controls which form screen is shown.
- *   form            Controlled object for all input values.
- *   showPassword    Toggle for the password field visibility.
- *   showConfirm     Toggle for the confirm-password field visibility.
- *   loading         True while the registration API call is in flight.
- *
- * Constants:
- *   ROLES           Dropdown options matching the UserRole enum on the backend.
  */
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
@@ -36,7 +11,6 @@ import toast from "react-hot-toast";
 import AuthLayout from "./AuthLayout";
 import { useAuth } from "../../context/AuthContext";
 
-/** Role options shown in the registration dropdown, matching the backend enum */
 const ROLES = [
   { value: "WORKFORCE_PLANNER", label: "Workforce Planner" },
   { value: "HR", label: "Human Resource (HR)" },
@@ -46,10 +20,7 @@ const ROLES = [
 ];
 
 export default function SignupForm() {
-  // Track which step of the two-step form is currently shown
   const [step, setStep] = useState(1);
-
-  // Single controlled object for all form field values
   const [form, setForm] = useState({
     full_name: "",
     email: "",
@@ -57,24 +28,18 @@ export default function SignupForm() {
     password: "",
     confirmPassword: "",
   });
-
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
   const { register } = useAuth();
   const navigate = useNavigate();
 
-  /** Generic change handler — updates the matching field in the form object */
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
   ) => {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
-  /**
-   * Step 1 submit — validates passwords and advances to the confirmation screen.
-   * Does NOT call the API yet.
-   */
   const handleStep1 = (e: React.FormEvent) => {
     e.preventDefault();
     if (form.password.length < 8) {
@@ -88,10 +53,6 @@ export default function SignupForm() {
     setStep(2);
   };
 
-  /**
-   * Step 2 submit — calls the register API.
-   * Navigates to /verify-email on success, passing the email and token in state.
-   */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -118,26 +79,27 @@ export default function SignupForm() {
 
   return (
     <AuthLayout>
-      {/* Step indicator pill at the top of the card */}
-      <span className="auth-step-badge">Step {step} of 2</span>
+      {/* Step badge */}
+      <span className="inline-block text-xs font-semibold bg-green-50 text-green-700 px-2.5 py-1 rounded-full mb-4">
+        Step {step} of 2
+      </span>
 
-      <div className="auth-header">
-        <h2 className="auth-title">Create your account</h2>
-        <p className="auth-description">
+      <div className="mb-5">
+        <h2 className="text-xl font-bold text-slate-800">Create your account</h2>
+        <p className="text-sm text-slate-500 mt-1">
           Join Recruitment and start your application today.
         </p>
       </div>
 
       {step === 1 ? (
-        /* ── Step 1: user details form ── */
-        <form onSubmit={handleStep1} className="auth-form">
+        <form onSubmit={handleStep1} className="flex flex-col gap-4">
           {/* Full name */}
-          <div className="auth-field-group">
-            <label className="auth-field-label">
-              Full Name<span className="auth-required">*</span>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-slate-700">
+              Full Name<span className="text-red-500 ml-0.5">*</span>
             </label>
-            <div className="auth-input-wrapper">
-              <span className="auth-input-icon">
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
                 <MdPerson size={17} />
               </span>
               <input
@@ -145,19 +107,19 @@ export default function SignupForm() {
                 value={form.full_name}
                 onChange={handleChange}
                 placeholder="Abebe Kebede"
-                className="auth-input"
+                className="w-full pl-9 pr-3 py-2.5 text-sm border border-slate-200 rounded-lg outline-none focus:border-green-500 focus:ring-1 focus:ring-green-200 text-slate-800 placeholder:text-slate-400 transition-colors"
                 required
               />
             </div>
           </div>
 
           {/* Email */}
-          <div className="auth-field-group">
-            <label className="auth-field-label">
-              Email Address<span className="auth-required">*</span>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-slate-700">
+              Email Address<span className="text-red-500 ml-0.5">*</span>
             </label>
-            <div className="auth-input-wrapper">
-              <span className="auth-input-icon">
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
                 <MdEmail size={17} />
               </span>
               <input
@@ -166,20 +128,20 @@ export default function SignupForm() {
                 value={form.email}
                 onChange={handleChange}
                 placeholder="you@example.com"
-                className="auth-input"
+                className="w-full pl-9 pr-3 py-2.5 text-sm border border-slate-200 rounded-lg outline-none focus:border-green-500 focus:ring-1 focus:ring-green-200 text-slate-800 placeholder:text-slate-400 transition-colors"
                 required
               />
             </div>
           </div>
 
-          {/* Role selector — value maps to UserRole enum on the backend */}
-          <div className="auth-field-group">
-            <label className="auth-field-label">Role</label>
+          {/* Role selector */}
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-slate-700">Role</label>
             <select
               name="role"
               value={form.role}
               onChange={handleChange}
-              className="auth-select"
+              className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-lg outline-none focus:border-green-500 focus:ring-1 focus:ring-green-200 text-slate-800 bg-white transition-colors"
             >
               {ROLES.map((r) => (
                 <option key={r.value} value={r.value}>
@@ -189,13 +151,13 @@ export default function SignupForm() {
             </select>
           </div>
 
-          {/* Password with show/hide toggle */}
-          <div className="auth-field-group">
-            <label className="auth-field-label">
-              Password<span className="auth-required">*</span>
+          {/* Password */}
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-slate-700">
+              Password<span className="text-red-500 ml-0.5">*</span>
             </label>
-            <div className="auth-input-wrapper">
-              <span className="auth-input-icon">
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
                 <MdLock size={17} />
               </span>
               <input
@@ -204,12 +166,12 @@ export default function SignupForm() {
                 value={form.password}
                 onChange={handleChange}
                 placeholder="At least 8 characters"
-                className="auth-input auth-input-has-suffix"
+                className="w-full pl-9 pr-10 py-2.5 text-sm border border-slate-200 rounded-lg outline-none focus:border-green-500 focus:ring-1 focus:ring-green-200 text-slate-800 placeholder:text-slate-400 transition-colors"
                 required
               />
               <button
                 type="button"
-                className="auth-input-suffix"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
                 onClick={() => setShowPassword(!showPassword)}
                 tabIndex={-1}
               >
@@ -218,24 +180,24 @@ export default function SignupForm() {
             </div>
           </div>
 
-          {/* Confirm password — validated to match on submit */}
-          <div className="auth-field-group">
-            <label className="auth-field-label">
-              Confirm Password<span className="auth-required">*</span>
+          {/* Confirm password */}
+          <div className="flex flex-col gap-1">
+            <label className="text-sm font-medium text-slate-700">
+              Confirm Password<span className="text-red-500 ml-0.5">*</span>
             </label>
-            <div className="auth-input-wrapper">
+            <div className="relative">
               <input
                 name="confirmPassword"
                 type={showConfirm ? "text" : "password"}
                 value={form.confirmPassword}
                 onChange={handleChange}
                 placeholder="Repeat your password"
-                className="auth-input auth-input-has-suffix"
+                className="w-full pl-3 pr-10 py-2.5 text-sm border border-slate-200 rounded-lg outline-none focus:border-green-500 focus:ring-1 focus:ring-green-200 text-slate-800 placeholder:text-slate-400 transition-colors"
                 required
               />
               <button
                 type="button"
-                className="auth-input-suffix"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
                 onClick={() => setShowConfirm(!showConfirm)}
                 tabIndex={-1}
               >
@@ -244,48 +206,50 @@ export default function SignupForm() {
             </div>
           </div>
 
-          <button type="submit" className="auth-submit-btn">
-            Create Account
+          <button
+            type="submit"
+            className="mt-2 w-full inline-flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white rounded-lg py-2.5 px-4 text-sm font-semibold transition-colors"
+          >
+            Continue
           </button>
         </form>
       ) : (
-        /* ── Step 2: confirmation screen ── */
-        <form onSubmit={handleSubmit} className="auth-form">
-          {/* Info box reminding the user about the verification email */}
-          <div className="auth-note-box">
-            <p className="auth-note-title">Almost done!</p>
-            <p className="auth-note-text">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          {/* Info box */}
+          <div className="bg-blue-50 border border-blue-100 rounded-lg p-4">
+            <p className="text-sm font-semibold text-blue-800 mb-1">Almost done!</p>
+            <p className="text-sm text-blue-700">
               After creating your account, you'll receive a verification link to
               confirm your identity before accessing workforce planning.
             </p>
           </div>
 
-          <div className="auth-action-row">
-            {/* Back button returns to step 1 without losing form data */}
+          <div className="flex gap-3 mt-2">
             <button
               type="button"
-              className="auth-back-btn"
+              className="flex-1 inline-flex items-center justify-center bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 rounded-lg py-2.5 px-4 text-sm font-semibold transition-colors"
               onClick={() => setStep(1)}
             >
               Back
             </button>
-            {/* Final submit — calls the register API */}
             <button
               type="submit"
-              className="auth-submit-btn auth-submit-btn-flex"
+              className="flex-1 inline-flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white rounded-lg py-2.5 px-4 text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={loading}
             >
-              {loading && <span className="auth-btn-spinner" />}
+              {loading && (
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+              )}
               Create Account
             </button>
           </div>
         </form>
       )}
 
-      {/* Link to sign-in for users who already have an account */}
-      <p className="auth-footer-text">
+      {/* Footer link */}
+      <p className="text-sm text-slate-500 text-center mt-5">
         Already have an account?{" "}
-        <Link to="/login" className="auth-action-link">
+        <Link to="/login" className="text-green-600 font-semibold hover:text-green-700 hover:underline">
           Sign in
         </Link>
       </p>

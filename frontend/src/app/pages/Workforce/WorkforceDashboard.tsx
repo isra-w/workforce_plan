@@ -2,19 +2,6 @@
  * pages/Workforce/WorkforceDashboard.tsx
  *
  * Main dashboard page at /workforce. Visible to all roles.
- *
- * Shows:
- *   1. Three KPI cards — Total Approved Headcount, Pending Requests, Open Vacancies
- *   2. "All Workforce Plans" table — every plan regardless of status (DRAFT excluded
- *      by the backend). Includes SUBMITTED, HR_APPROVED, APPROVED, REJECTED.
- *   3. "Active Requests" sidebar — in-flight plans still moving through the pipeline.
- *
- * Role visibility:
- *   WORKFORCE_PLANNER — sees all plans in the table; active sidebar shows SUBMITTED
- *                       and HR_APPROVED.
- *   HR               — same table; active sidebar shows only SUBMITTED plans.
- *   CEO              — same table; active sidebar shows only HR_APPROVED plans.
- *   CANDIDATE        — read-only; no "Create plan" links shown.
  */
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
@@ -29,8 +16,6 @@ import StatusBadge from "../../components/common/StatusBadge";
 import { workforceService } from "../../services/workforceService";
 import { DashboardData, WorkforcePlan } from "../../../utils/types";
 import { useAuth } from "../../context/AuthContext";
-
-/* ── Helpers ──────────────────────────────────────────────────────────── */
 
 function KpiCard({
   title,
@@ -48,15 +33,15 @@ function KpiCard({
   empty?: boolean;
 }) {
   return (
-    <div className={`kpi-card${empty ? " kpi-card-empty" : ""}`}>
-      <div className="kpi-card-header">
-        <p className="kpi-card-title">{title}</p>
-        <span className="kpi-card-icon">{icon}</span>
+    <div className={`bg-white rounded-xl border border-slate-200 p-5 flex flex-col gap-3 ${empty ? "opacity-70" : ""}`}>
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-medium text-slate-500">{title}</p>
+        <span className="text-slate-400">{icon}</span>
       </div>
-      <p className="kpi-card-value">{value}</p>
+      <p className="text-3xl font-bold text-slate-800">{value}</p>
       {subtitle && (
-        <p className="kpi-card-subtitle">
-          {trend && <FiTrendingUp className="kpi-card-trend" size={13} />}
+        <p className="text-xs text-slate-500 flex items-center gap-1">
+          {trend && <FiTrendingUp className="text-green-500" size={13} />}
           {subtitle}
         </p>
       )}
@@ -64,7 +49,6 @@ function KpiCard({
   );
 }
 
-/* ── Status label map — human-readable names for every PlanStatus ─────── */
 const STATUS_LABEL: Record<string, string> = {
   DRAFT: "Draft",
   SUBMITTED: "Submitted",
@@ -72,8 +56,6 @@ const STATUS_LABEL: Record<string, string> = {
   APPROVED: "Approved",
   REJECTED: "Rejected",
 };
-
-/* ── Page ─────────────────────────────────────────────────────────────── */
 
 export default function WorkforceDashboard() {
   const { user } = useAuth();
@@ -101,20 +83,16 @@ export default function WorkforceDashboard() {
 
   if (loading) {
     return (
-      <div className="page-loading">
-        <div className="loader-icon" />
+      <div className="flex items-center justify-center h-64">
+        <div className="h-8 w-8 animate-spin rounded-full border-3 border-slate-200 border-t-green-600" />
       </div>
     );
   }
 
   const kpis = data?.kpis;
   const activeRequests = data?.activeRequests ?? [];
-
-  // allPlans comes from the backend with status NOT IN ('DRAFT').
-  // It includes SUBMITTED, HR_APPROVED, APPROVED, and REJECTED plans.
   const allPlans = data?.allPlans ?? [];
 
-  // Counts per status — used in the table header summary
   const approvedCount = allPlans.filter((p) => p.status === "APPROVED").length;
   const rejectedCount = allPlans.filter((p) => p.status === "REJECTED").length;
   const pendingCount = allPlans.filter((p) =>
@@ -122,30 +100,30 @@ export default function WorkforceDashboard() {
   ).length;
 
   return (
-    <div className="dashboard-page">
-      {/* ── Page header ── */}
-      <div className="dashboard-header">
+    <div className="flex flex-col gap-6">
+      {/* Page header */}
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="dashboard-title">Workforce Planning</h1>
-          <p className="dashboard-description">
+          <h1 className="text-2xl font-bold text-slate-900">Workforce Planning</h1>
+          <p className="text-sm text-slate-500 mt-1">
             Headcount allocation and recruitment overview
           </p>
         </div>
-        <div className="toolbar">
+        <div className="flex items-center gap-2">
           <button
-            className="toolbar-button toolbar-button-secondary"
+            className="inline-flex items-center gap-1.5 text-sm font-medium px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition-colors disabled:opacity-50"
             onClick={() => load(true)}
             disabled={refreshing}
             title="Refresh"
           >
-            <FiRefreshCw size={15} className={refreshing ? "spin-icon" : ""} />
+            <FiRefreshCw size={15} className={refreshing ? "animate-spin" : ""} />
             {refreshing ? "Refreshing…" : "Refresh"}
           </button>
         </div>
       </div>
 
-      {/* ── KPI cards ── */}
-      <div className="kpi-grid">
+      {/* KPI cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <KpiCard
           title="Total Approved Headcount"
           value={kpis?.totalApprovedHeadcount?.toLocaleString() ?? "0"}
@@ -180,79 +158,52 @@ export default function WorkforceDashboard() {
           icon={
             <FiAlertTriangle
               size={20}
-              className={kpis?.openVacancies ? "status-icon-warning" : ""}
+              className={kpis?.openVacancies ? "text-amber-500" : ""}
             />
           }
           empty={!kpis?.openVacancies}
         />
       </div>
 
-      {/* ── Two-column main grid ── */}
-      <div className="dashboard-grid">
-        {/* ── Left: all plans table ── */}
-        <div className="table-card">
-          <div className="card-header">
-            <div>
-              <h2 className="section-title">All Workforce Plans</h2>
-              {/* Summary row showing counts per status */}
-              <p className="dashboard-plan-summary">
-                {allPlans.length} total
-                {approvedCount > 0 && (
-                  <>
-                    {" "}
-                    ·{" "}
-                    <span className="summary-approved">
-                      {approvedCount} approved
-                    </span>
-                  </>
-                )}
-                {pendingCount > 0 && (
-                  <>
-                    {" "}
-                    ·{" "}
-                    <span className="summary-pending">
-                      {pendingCount} pending
-                    </span>
-                  </>
-                )}
-                {rejectedCount > 0 && (
-                  <>
-                    {" "}
-                    ·{" "}
-                    <span className="summary-rejected">
-                      {rejectedCount} rejected
-                    </span>
-                  </>
-                )}
-              </p>
-            </div>
+      {/* Two-column main grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-5">
+        {/* All plans table */}
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-100">
+            <h2 className="text-base font-semibold text-slate-800">All Workforce Plans</h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              {allPlans.length} total
+              {approvedCount > 0 && (
+                <> · <span className="text-green-600 font-medium">{approvedCount} approved</span></>
+              )}
+              {pendingCount > 0 && (
+                <> · <span className="text-yellow-600 font-medium">{pendingCount} pending</span></>
+              )}
+              {rejectedCount > 0 && (
+                <> · <span className="text-red-500 font-medium">{rejectedCount} rejected</span></>
+              )}
+            </p>
           </div>
 
-          <div className="table-scroll">
-            <table className="data-table">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
               <thead>
-                <tr className="table-header-row">
-                  <th className="table-heading">Plan Title</th>
-                  <th className="table-heading">Department</th>
-                  <th className="table-heading">Period</th>
-                  <th className="table-heading">Headcount</th>
-                  <th className="table-heading">Version</th>
-                  <th className="table-heading">Status</th>
+                <tr className="bg-slate-50 border-b border-slate-100">
+                  <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-5 py-3">Plan Title</th>
+                  <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-5 py-3">Department</th>
+                  <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-5 py-3">Period</th>
+                  <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-5 py-3">Headcount</th>
+                  <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-5 py-3">Version</th>
+                  <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-5 py-3">Status</th>
                 </tr>
               </thead>
               <tbody>
                 {allPlans.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="empty-state">
-                      <span className="empty-state-text">
-                        No workforce plans found.
-                      </span>
-                      {/* Only planners can create plans */}
+                    <td colSpan={6} className="px-5 py-10 text-center text-slate-400 text-sm">
+                      <span className="block mb-1">No workforce plans found.</span>
                       {isPlanner && (
-                        <Link
-                          to="/workforce/plans/new"
-                          className="empty-state-link"
-                        >
+                        <Link to="/workforce/plans/new" className="text-green-600 font-semibold hover:underline">
                           Create the first plan
                         </Link>
                       )}
@@ -267,42 +218,31 @@ export default function WorkforceDashboard() {
                         ? `Q${plan.quarter} ${plan.fiscal_year}`
                         : `Annual ${plan.fiscal_year}`;
 
-                    // Row accent class so approved/rejected rows are visually distinct
-                    const rowClass =
+                    const rowBg =
                       plan.status === "APPROVED"
-                        ? "table-row table-row-approved"
+                        ? "bg-green-50/40"
                         : plan.status === "REJECTED"
-                          ? "table-row table-row-rejected"
-                          : "table-row";
+                          ? "bg-red-50/40"
+                          : "";
 
                     return (
-                      <tr key={plan.id} className={rowClass}>
-                        <td className="table-cell table-cell-emphasis">
-                          {/* Planners get an edit/view link; others just see the title */}
+                      <tr key={plan.id} className={`border-b border-slate-50 hover:bg-slate-50/60 transition-colors ${rowBg}`}>
+                        <td className="px-5 py-3.5 font-medium text-slate-800">
                           {isPlanner ? (
-                            <Link
-                              to={`/workforce/plans/${plan.id}`}
-                              className="table-plan-link"
-                            >
+                            <Link to={`/workforce/plans/${plan.id}`} className="text-green-600 hover:underline">
                               {plan.title}
                             </Link>
                           ) : (
                             plan.title
                           )}
                         </td>
-                        <td className="table-cell">
-                          {plan.department?.name ?? "—"}
+                        <td className="px-5 py-3.5 text-slate-600">{plan.department?.name ?? "—"}</td>
+                        <td className="px-5 py-3.5 text-slate-500">{period}</td>
+                        <td className="px-5 py-3.5">
+                          <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700">{totalHc}</span>
                         </td>
-                        <td className="table-cell table-cell-muted">
-                          {period}
-                        </td>
-                        <td className="table-cell">
-                          <span className="table-hc-badge">{totalHc}</span>
-                        </td>
-                        <td className="table-cell table-cell-muted">
-                          v{plan.version}
-                        </td>
-                        <td className="table-cell">
+                        <td className="px-5 py-3.5 text-slate-500">v{plan.version}</td>
+                        <td className="px-5 py-3.5">
                           <StatusBadge status={plan.status} />
                         </td>
                       </tr>
@@ -314,32 +254,34 @@ export default function WorkforceDashboard() {
           </div>
 
           {allPlans.length > 0 && isPlanner && (
-            <div className="card-footer">
-              <Link to="/workforce/planning" className="view-link">
+            <div className="px-5 py-3 border-t border-slate-100">
+              <Link to="/workforce/planning" className="text-sm text-green-600 font-semibold hover:underline">
                 View all workforce plans →
               </Link>
             </div>
           )}
         </div>
 
-        {/* ── Right: active requests sidebar ── */}
-        <div className="active-requests-card">
-          <div className="card-header card-header-spaced">
-            <h2 className="section-title">Active Requests</h2>
-            <span className="status-pill">{activeRequests.length}</span>
+        {/* Active requests sidebar */}
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden flex flex-col">
+          <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+            <h2 className="text-base font-semibold text-slate-800">Active Requests</h2>
+            <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
+              {activeRequests.length}
+            </span>
           </div>
 
           {activeRequests.length === 0 ? (
-            <div className="active-requests-empty">
-              <p>No in-flight requests right now.</p>
+            <div className="flex-1 flex flex-col items-center justify-center gap-2 py-10 px-5 text-center">
+              <p className="text-sm text-slate-500">No in-flight requests right now.</p>
               {isPlanner && (
-                <Link to="/workforce/plans/new" className="empty-state-link">
+                <Link to="/workforce/plans/new" className="text-sm text-green-600 font-semibold hover:underline">
                   Submit a new plan
                 </Link>
               )}
             </div>
           ) : (
-            <div className="active-requests-list">
+            <div className="flex flex-col gap-0 overflow-y-auto">
               {activeRequests.map((req: WorkforcePlan) => {
                 const totalHc =
                   req.positions?.reduce((s, p) => s + p.count, 0) ?? 0;
@@ -347,24 +289,24 @@ export default function WorkforceDashboard() {
                   <Link
                     key={req.id}
                     to={isPlanner ? `/workforce/plans/${req.id}` : "#"}
-                    className="request-card"
+                    className="block px-5 py-4 border-b border-slate-50 hover:bg-slate-50 transition-colors no-underline"
                     onClick={(e) => !isPlanner && e.preventDefault()}
                   >
-                    <div className="request-card-header">
-                      <span className="request-card-tag">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
                         {req.department?.name ?? "—"}
                       </span>
                       <StatusBadge status={req.status} />
                     </div>
-                    <h3 className="request-card-title">{req.title}</h3>
-                    <p className="request-card-text">
+                    <h3 className="text-sm font-semibold text-slate-800 leading-tight mb-1">{req.title}</h3>
+                    <p className="text-xs text-slate-500 line-clamp-2 mb-2">
                       {req.justification || "No justification provided"}
                     </p>
-                    <div className="request-card-footer">
-                      <span className="request-card-hc">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-slate-500">
                         {totalHc} position{totalHc !== 1 ? "s" : ""}
                       </span>
-                      <span className="request-card-action">
+                      <span className="text-xs font-medium text-green-600">
                         {STATUS_LABEL[req.status] ?? req.status}
                       </span>
                     </div>

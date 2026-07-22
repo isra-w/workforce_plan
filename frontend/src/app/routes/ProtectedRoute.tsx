@@ -39,8 +39,8 @@ export default function ProtectedRoute() {
   // Still validating the stored token — show a spinner to avoid a flash redirect
   if (loading) {
     return (
-      <div className="page-loading">
-        <div className="loader-icon" />
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="h-10 w-10 animate-spin rounded-full border-[3px] border-slate-200 border-t-green-600" />
       </div>
     );
   }

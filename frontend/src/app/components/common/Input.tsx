@@ -3,33 +3,6 @@
  *
  * A reusable controlled input field with an optional label, leading icon,
  * trailing suffix element, and inline error message.
- *
- * Props (extends all standard <input> HTML attributes):
- *   label     string     — visible label text rendered above the input.
- *   error     string     — when provided, adds a red error message below the
- *                          input and applies an error border style.
- *   icon      ReactNode  — optional element (usually an icon) displayed inside
- *                          the left side of the input via absolute positioning.
- *                          Adds padding-left to the input via the "with-icon" class.
- *   suffix    ReactNode  — optional element displayed on the right side of the
- *                          input (e.g. a show/hide password button).
- *                          Adds padding-right via the "with-suffix" class.
- *   required  boolean    — when true, appends a red asterisk to the label and
- *                          passes the required attribute to the native input.
- *   className string     — extra CSS classes merged onto the <input> element.
- *   ...props             — all other standard input attributes (type, value,
- *                          onChange, placeholder, disabled, etc.) are spread
- *                          directly onto the <input>.
- *
- * CSS classes used (defined in globals.css):
- *   .input-group         — column flex wrapper
- *   .input-label         — label text style
- *   .input-label-required — red asterisk colour
- *   .input-wrapper       — relative container for icon/suffix positioning
- *   .input-field         — the actual <input> element base style
- *   .input-icon          — absolute-left icon wrapper
- *   .input-suffix        — absolute-right suffix wrapper
- *   .input-error         — red error text below the input
  */
 import { InputHTMLAttributes, ReactNode } from "react";
 
@@ -50,41 +23,43 @@ export default function Input({
   ...props
 }: InputProps) {
   return (
-    <div className="input-group">
-      {/* Label row — red asterisk appended when required */}
-      <label className="input-label">
+    <div className="flex flex-col gap-1">
+      {/* Label row */}
+      <label className="text-sm font-medium text-slate-700">
         {label}
-        {required && <span className="input-label-required">*</span>}
+        {required && <span className="text-red-500 ml-0.5">*</span>}
       </label>
 
-      {/* Wrapper provides relative positioning for the icon and suffix */}
-      <div className="input-wrapper">
-        {/* Leading icon — positioned absolutely on the left */}
+      {/* Wrapper provides relative positioning for icon and suffix */}
+      <div className="relative">
+        {/* Leading icon */}
         {icon && (
-          <span className="input-icon">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
             {icon}
           </span>
         )}
 
-        {/* The actual input element — class names adjust padding for icon/suffix */}
+        {/* Input element */}
         <input
-          className={`input-field ${error ? "error" : ""} ${
-            icon ? "with-icon" : ""
-          } ${suffix ? "with-suffix" : ""} ${className}`}
+          className={`w-full rounded-lg border px-3 py-2 text-sm text-slate-800 bg-white outline-none transition-colors placeholder:text-slate-400
+            ${error ? "border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-300" : "border-slate-200 focus:border-green-500 focus:ring-1 focus:ring-green-200"}
+            ${icon ? "pl-9" : ""}
+            ${suffix ? "pr-9" : ""}
+            ${className}`}
           required={required}
           {...props}
         />
 
-        {/* Trailing suffix — positioned absolutely on the right */}
+        {/* Trailing suffix */}
         {suffix && (
-          <span className="input-suffix">
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
             {suffix}
           </span>
         )}
       </div>
 
-      {/* Inline error message shown below the input */}
-      {error && <p className="input-error">{error}</p>}
+      {/* Inline error message */}
+      {error && <p className="text-xs text-red-500">{error}</p>}
     </div>
   );
 }

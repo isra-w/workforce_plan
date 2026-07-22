@@ -2,38 +2,6 @@
  * pages/Auth/VerifyEmailPage.tsx
  *
  * Email verification page that the user lands on after registration.
- *
- * How it gets its data:
- *   The email and verificationToken are passed as React Router location.state
- *   by both SignupForm (after registration) and ProtectedRoute (when a logged-in
- *   but unverified user tries to access a protected page).
- *
- * Two UI states:
- *   1. Unverified (default):
- *      Shows a mail icon, the destination email address, a "Verify Email" button,
- *      a "Resend verification link" button, and a back-to-login link.
- *
- *   2. Verified (after handleVerify succeeds):
- *      Shows a green checkmark icon and a success message, then automatically
- *      redirects to /workforce after 1.5 seconds.
- *
- * handleVerify:
- *   Called when the user clicks "Verify Email".
- *   Uses the verificationToken from router state to call verifyEmail() from
- *   AuthContext (GET /auth/verify/:token). On success:
- *     - Sets verified = true to show the success screen.
- *     - Shows a success toast.
- *     - Navigates to /workforce after a 1.5 s delay.
- *   On failure shows the server error as an error toast.
- *
- * handleResend:
- *   Calls authService.resendVerification(email) to get a fresh token.
- *   On success navigates to /verify-email (replacing history) with the new
- *   token in state so the page is ready for the next verification attempt.
- *
- * State:
- *   loading   boolean — true while the verify API call is in flight.
- *   verified  boolean — true once verification succeeds (shows success screen).
  */
 import { useState } from "react";
 import { useLocation, useNavigate, Link } from "react-router-dom";
@@ -50,15 +18,10 @@ export default function VerifyEmailPage() {
   const [loading, setLoading] = useState(false);
   const [verified, setVerified] = useState(false);
 
-  // Pull email and token from router state (set by SignupForm or ProtectedRoute)
   const email = (location.state as { email?: string })?.email || "";
   const verificationToken =
     (location.state as { verificationToken?: string })?.verificationToken || "";
 
-  /**
-   * Confirms the email address using the token from router state.
-   * Navigates to the dashboard automatically once verified.
-   */
   const handleVerify = async () => {
     if (!verificationToken) {
       toast.error("No verification token found. Please check your email.");
@@ -69,7 +32,6 @@ export default function VerifyEmailPage() {
       await verifyEmail(verificationToken);
       setVerified(true);
       toast.success("Email verified successfully!");
-      // Short delay before redirect so the user sees the success screen
       setTimeout(() => navigate("/workforce"), 1500);
     } catch (err: unknown) {
       const message =
@@ -81,10 +43,6 @@ export default function VerifyEmailPage() {
     }
   };
 
-  /**
-   * Requests a fresh verification token from the backend and refreshes the
-   * page state so the new token is available for the next attempt.
-   */
   const handleResend = async () => {
     if (!email) {
       toast.error("Email address not found");
@@ -93,7 +51,6 @@ export default function VerifyEmailPage() {
     try {
       const res = await authService.resendVerification(email);
       toast.success("Verification link resent!");
-      // Replace current history entry with updated state containing the new token
       navigate("/verify-email", {
         state: {
           email,
@@ -108,47 +65,45 @@ export default function VerifyEmailPage() {
 
   return (
     <AuthLayout>
-      <div className="verify-page">
+      <div className="flex flex-col items-center text-center gap-4 py-2">
         {verified ? (
-          /* ── Success screen ── */
           <>
-            <FiCheckCircle className="verify-icon verify-icon-success" size={48} />
-            <h2 className="verify-title">Email Verified!</h2>
-            <p className="verify-description">
+            <FiCheckCircle className="text-green-500" size={48} />
+            <h2 className="text-xl font-bold text-slate-800">Email Verified!</h2>
+            <p className="text-sm text-slate-500">
               Redirecting to workforce planning...
             </p>
           </>
         ) : (
-          /* ── Pending verification screen ── */
           <>
-            <FiMail className="verify-icon verify-icon-mail" size={48} />
-            <h2 className="verify-title">Verify your email</h2>
-            <p className="verify-description verify-message">
+            <FiMail className="text-green-600" size={48} />
+            <h2 className="text-xl font-bold text-slate-800">Verify your email</h2>
+            <p className="text-sm text-slate-500 max-w-xs">
               We sent a verification link to{" "}
-              <strong>{email || "your email"}</strong>. Click below to confirm
+              <strong className="text-slate-700">{email || "your email"}</strong>. Click below to confirm
               your identity and access workforce planning.
             </p>
 
-            {/* Primary CTA — verifies the email using the token in state */}
             <button
-              className="auth-submit-btn"
+              className="w-full inline-flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white rounded-lg py-2.5 px-4 text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={loading}
               onClick={handleVerify}
             >
-              {loading && <span className="auth-btn-spinner" />}
+              {loading && (
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+              )}
               Verify Email
             </button>
 
-            {/* Resend link for users whose token has expired */}
             <button
               onClick={handleResend}
-              className="verify-resend-link"
+              className="text-sm text-slate-500 hover:text-green-600 hover:underline transition-colors"
             >
               Resend verification link
             </button>
 
-            <p className="verify-footer-text">
-              <Link to="/login" className="verify-action-link">
+            <p className="text-sm text-slate-500">
+              <Link to="/login" className="text-green-600 font-semibold hover:text-green-700 hover:underline">
                 Back to sign in
               </Link>
             </p>

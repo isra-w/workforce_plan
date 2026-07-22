@@ -70,12 +70,9 @@ model RolePermission {
   @@map("role_permissions")
 }
 
-// ---------------------------------------------------------------------------
 // UserPermission
 // Stores one row per user × resource × action combination.
-// Actions: READ | CREATE | UPDATE | DELETE
-// Resources are free-form strings (e.g. "Workforce Plans", "Vacancies").
-// ---------------------------------------------------------------------------
+
 model UserPermission {
   id         String   @id @default(uuid())
   user_id    String

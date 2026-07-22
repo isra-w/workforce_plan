@@ -1,28 +1,7 @@
 /**
  * components/auth/LoginForm.tsx
  *
- * The sign-in page. Renders inside AuthLayout so the brand header and card
- * wrapper are handled externally.
- *
- * State:
- *   email          Controlled value for the email input.
- *   password       Controlled value for the password input.
- *   showPassword   Toggles the password input between type="text" and
- *                  type="password" when the eye icon is clicked.
- *   loading        True while the login API call is in flight; disables the
- *                  submit button and shows a spinner in its place.
- *
- * Behaviour:
- *   - handleSubmit calls login() from AuthContext (which hits POST /auth/login).
- *     On success it shows a welcome toast and navigates to /workforce.
- *     On failure it extracts the server's error message from the Axios error
- *     response and shows it as an error toast.
- *
- *   - If a user object already exists in context but their email is not yet
- *     verified, the component redirects them to /verify-email immediately so
- *     they are nudged to complete verification.
- *
- *   - A link at the bottom navigates to /signup for new users.
+ * The sign-in page. Renders inside AuthLayout.
  */
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
@@ -40,7 +19,6 @@ export default function LoginForm() {
   const { login, user } = useAuth();
   const navigate = useNavigate();
 
-  /** Calls the auth login and navigates to the dashboard on success */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -49,7 +27,6 @@ export default function LoginForm() {
       toast.success("Welcome back!");
       navigate("/workforce");
     } catch (err: unknown) {
-      // Extract the backend error message or fall back to a generic string
       const message =
         (err as { response?: { data?: { message?: string } } })?.response?.data
           ?.message || "Login failed";
@@ -59,25 +36,24 @@ export default function LoginForm() {
     }
   };
 
-  // If the user is already logged in but unverified, redirect them to verify
   if (user?.is_verified === false) {
     navigate("/verify-email", { state: { email: user.email } });
   }
 
   return (
     <AuthLayout>
-      <div className="auth-header">
-        <h2 className="auth-title">Welcome back</h2>
+      <div className="mb-6">
+        <h2 className="text-xl font-bold text-slate-800">Welcome back</h2>
       </div>
 
-      <form onSubmit={handleSubmit} className="auth-form">
-        {/* Email field with envelope icon */}
-        <div className="auth-field-group">
-          <label className="auth-field-label">
-            Email Address<span className="auth-required">*</span>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        {/* Email field */}
+        <div className="flex flex-col gap-1">
+          <label className="text-sm font-medium text-slate-700">
+            Email Address<span className="text-red-500 ml-0.5">*</span>
           </label>
-          <div className="auth-input-wrapper">
-            <span className="auth-input-icon">
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
               <MdEmail size={17} />
             </span>
             <input
@@ -85,19 +61,19 @@ export default function LoginForm() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
-              className="auth-input"
+              className="w-full pl-9 pr-3 py-2.5 text-sm border border-slate-200 rounded-lg outline-none focus:border-green-500 focus:ring-1 focus:ring-green-200 text-slate-800 placeholder:text-slate-400 transition-colors"
               required
             />
           </div>
         </div>
 
-        {/* Password field with lock icon and show/hide toggle */}
-        <div className="auth-field-group">
-          <label className="auth-field-label">
-            Password<span className="auth-required">*</span>
+        {/* Password field */}
+        <div className="flex flex-col gap-1">
+          <label className="text-sm font-medium text-slate-700">
+            Password<span className="text-red-500 ml-0.5">*</span>
           </label>
-          <div className="auth-input-wrapper">
-            <span className="auth-input-icon">
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
               <MdLock size={17} />
             </span>
             <input
@@ -105,13 +81,12 @@ export default function LoginForm() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Your password"
-              className="auth-input auth-input-has-suffix"
+              className="w-full pl-9 pr-10 py-2.5 text-sm border border-slate-200 rounded-lg outline-none focus:border-green-500 focus:ring-1 focus:ring-green-200 text-slate-800 placeholder:text-slate-400 transition-colors"
               required
             />
-            {/* Eye icon button toggles password visibility */}
             <button
               type="button"
-              className="auth-input-suffix"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
               onClick={() => setShowPassword(!showPassword)}
               tabIndex={-1}
             >
@@ -120,10 +95,14 @@ export default function LoginForm() {
           </div>
         </div>
 
-        {/* Submit button — shows spinner while loading */}
-        <button type="submit" className="auth-submit-btn" disabled={loading}>
+        {/* Submit button */}
+        <button
+          type="submit"
+          className="mt-2 w-full inline-flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white rounded-lg py-2.5 px-4 text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          disabled={loading}
+        >
           {loading ? (
-            <span className="auth-btn-spinner" />
+            <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
           ) : (
             <FiLogIn size={17} />
           )}
@@ -131,15 +110,17 @@ export default function LoginForm() {
         </button>
       </form>
 
-      {/* Visual divider between the form and footer link */}
-      <div className="auth-divider">
-        <span>or</span>
+      {/* Divider */}
+      <div className="flex items-center gap-3 my-5">
+        <div className="flex-1 h-px bg-slate-200" />
+        <span className="text-xs text-slate-400 font-medium">or</span>
+        <div className="flex-1 h-px bg-slate-200" />
       </div>
 
-      {/* Link to the sign-up page for new users */}
-      <p className="auth-footer-text">
+      {/* Footer link */}
+      <p className="text-sm text-slate-500 text-center">
         Don't have an account?{" "}
-        <Link to="/signup" className="auth-action-link">
+        <Link to="/signup" className="text-green-600 font-semibold hover:text-green-700 hover:underline">
           Create one
         </Link>
       </p>

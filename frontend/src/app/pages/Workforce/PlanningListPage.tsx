@@ -8,7 +8,6 @@ import { workforceService } from "../../services/workforceService";
 import { WorkforcePlan } from "../../../utils/types";
 import { useAuth } from "../../context/AuthContext";
 
-// All possible filter tabs — shown in this order
 const ALL_TABS = [
   { key: "ALL", label: "All" },
   { key: "DRAFT", label: "Draft" },
@@ -18,17 +17,14 @@ const ALL_TABS = [
   { key: "REJECTED", label: "Rejected" },
 ];
 
-// Row accent class by status
-function rowClass(status: string): string {
-  if (status === "APPROVED") return "table-row table-row-approved";
-  if (status === "REJECTED") return "table-row table-row-rejected";
-  if (status === "HR_APPROVED") return "table-row table-row-hr-approved";
-  return "table-row";
+function rowBg(status: string): string {
+  if (status === "APPROVED") return "bg-green-50/40";
+  if (status === "REJECTED") return "bg-red-50/40";
+  if (status === "HR_APPROVED") return "bg-blue-50/30";
+  return "";
 }
 
-// Which statuses let the planner edit (vs view-only)
 const EDITABLE_STATUSES = ["DRAFT", "SUBMITTED", "REJECTED"];
-// Which statuses show the delete button
 const DELETABLE_STATUSES = ["DRAFT", "SUBMITTED"];
 
 export default function PlanningListPage() {
@@ -38,7 +34,6 @@ export default function PlanningListPage() {
   const [deleting, setDeleting] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("ALL");
 
-  // HR and CEO have dedicated review pages
   if (user?.role === "CEO") return <Navigate to="/review/ceo" replace />;
 
   const isPlanner = user?.role === "WORKFORCE_PLANNER";
@@ -73,28 +68,25 @@ export default function PlanningListPage() {
     }
   };
 
-  // Count plans per status for tab badges
   const countByStatus = (status: string) =>
     status === "ALL"
       ? plans.length
       : plans.filter((p) => p.status === status).length;
 
-  // Only show a tab if it has at least one plan (except "All" which is always shown)
   const visibleTabs = ALL_TABS.filter(
     (t) => t.key === "ALL" || countByStatus(t.key) > 0,
   );
 
-  // Plans shown in the current tab
   const visiblePlans =
     activeTab === "ALL" ? plans : plans.filter((p) => p.status === activeTab);
 
   return (
-    <div className="plans-page">
-      {/* ── Page header ── */}
-      <div className="page-header">
+    <div className="flex flex-col gap-6">
+      {/* Page header */}
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="page-title">Workforce Plans</h1>
-          <p className="page-description">
+          <h1 className="text-2xl font-bold text-slate-900">Workforce Plans</h1>
+          <p className="text-sm text-slate-500 mt-1">
             {isPlanner
               ? "Create, track, and manage all your headcount planning requests."
               : "View submitted workforce plans."}
@@ -108,23 +100,31 @@ export default function PlanningListPage() {
       </div>
 
       {loading ? (
-        <div className="page-loading">
-          <div className="loader-icon" />
+        <div className="flex items-center justify-center h-64">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-200 border-t-green-600" />
         </div>
       ) : (
         <>
-          {/* ── Status filter tabs ── */}
+          {/* Status filter tabs */}
           {isPlanner && visibleTabs.length > 1 && (
-            <div className="plan-tabs">
+            <div className="flex items-center gap-1 border-b border-slate-200 overflow-x-auto">
               {visibleTabs.map((tab) => (
                 <button
                   key={tab.key}
-                  className={`plan-tab${activeTab === tab.key ? " plan-tab-active" : ""}`}
+                  className={`inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap -mb-px
+                    ${activeTab === tab.key
+                      ? "border-green-600 text-green-600"
+                      : "border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300"
+                    }`}
                   onClick={() => setActiveTab(tab.key)}
                 >
                   {tab.label}
                   <span
-                    className={`plan-tab-count${activeTab === tab.key ? " plan-tab-count-active" : ""}`}
+                    className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-xs font-semibold
+                      ${activeTab === tab.key
+                        ? "bg-green-100 text-green-700"
+                        : "bg-slate-100 text-slate-500"
+                      }`}
                   >
                     {countByStatus(tab.key)}
                   </span>
@@ -133,94 +133,86 @@ export default function PlanningListPage() {
             </div>
           )}
 
-          {/* ── Plans table ── */}
-          <div className="table-card">
-            <table className="data-table">
-              <thead>
-                <tr className="table-header-row">
-                  <th className="table-heading">Plan Title</th>
-                  <th className="table-heading">Department</th>
-                  <th className="table-heading">Period</th>
-                  <th className="table-heading">Headcount</th>
-                  <th className="table-heading">Version</th>
-                  <th className="table-heading">Status</th>
-                  <th className="table-heading">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {visiblePlans.map((plan) => {
-                  const totalHc =
-                    plan.positions?.reduce((s, p) => s + p.count, 0) ?? 0;
-                  const canEdit =
-                    isPlanner && EDITABLE_STATUSES.includes(plan.status);
-                  const canDelete =
-                    isPlanner && DELETABLE_STATUSES.includes(plan.status);
+          {/* Plans table */}
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-100">
+                    <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-5 py-3">Plan Title</th>
+                    <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-5 py-3">Department</th>
+                    <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-5 py-3">Period</th>
+                    <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-5 py-3">Headcount</th>
+                    <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-5 py-3">Version</th>
+                    <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-5 py-3">Status</th>
+                    <th className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wide px-5 py-3">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visiblePlans.map((plan) => {
+                    const totalHc =
+                      plan.positions?.reduce((s, p) => s + p.count, 0) ?? 0;
+                    const canEdit =
+                      isPlanner && EDITABLE_STATUSES.includes(plan.status);
+                    const canDelete =
+                      isPlanner && DELETABLE_STATUSES.includes(plan.status);
 
-                  return (
-                    <tr key={plan.id} className={rowClass(plan.status)}>
-                      <td className="table-cell table-cell-emphasis">
-                        {plan.title}
-                      </td>
-                      <td className="table-cell">
-                        {plan.department?.name ?? "—"}
-                      </td>
-                      <td className="table-cell table-cell-capitalize">
-                        {plan.planning_period.toLowerCase()}
-                        {plan.quarter ? ` Q${plan.quarter}` : ""}
-                      </td>
-                      <td className="table-cell">{totalHc}</td>
-                      <td className="table-cell">v{plan.version}</td>
-                      <td className="table-cell">
-                        <StatusBadge status={plan.status} />
-                      </td>
-                      <td className="table-cell">
-                        <div className="action-group">
-                          {/* Edit for mutable statuses, View for locked ones */}
-                          <Link
-                            to={`/workforce/plans/${plan.id}`}
-                            className="action-link"
-                          >
-                            {canEdit ? "Edit" : "View"}
-                          </Link>
-
-                          {/* Delete — only DRAFT and SUBMITTED */}
-                          {canDelete && (
-                            <button
-                              onClick={() => handleDelete(plan.id, plan.title)}
-                              disabled={deleting === plan.id}
-                              className="delete-button"
-                              title="Delete plan"
+                    return (
+                      <tr key={plan.id} className={`border-b border-slate-50 hover:bg-slate-50/60 transition-colors ${rowBg(plan.status)}`}>
+                        <td className="px-5 py-3.5 font-medium text-slate-800">{plan.title}</td>
+                        <td className="px-5 py-3.5 text-slate-600">{plan.department?.name ?? "—"}</td>
+                        <td className="px-5 py-3.5 text-slate-600 capitalize">
+                          {plan.planning_period.toLowerCase()}
+                          {plan.quarter ? ` Q${plan.quarter}` : ""}
+                        </td>
+                        <td className="px-5 py-3.5 text-slate-600">{totalHc}</td>
+                        <td className="px-5 py-3.5 text-slate-500">v{plan.version}</td>
+                        <td className="px-5 py-3.5">
+                          <StatusBadge status={plan.status} />
+                        </td>
+                        <td className="px-5 py-3.5">
+                          <div className="flex items-center gap-2">
+                            <Link
+                              to={`/workforce/plans/${plan.id}`}
+                              className="text-sm font-medium text-green-600 hover:text-green-700 hover:underline"
                             >
-                              <FiTrash2 size={16} />
-                            </button>
-                          )}
-                        </div>
+                              {canEdit ? "Edit" : "View"}
+                            </Link>
+                            {canDelete && (
+                              <button
+                                onClick={() => handleDelete(plan.id, plan.title)}
+                                disabled={deleting === plan.id}
+                                className="p-1 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
+                                title="Delete plan"
+                              >
+                                <FiTrash2 size={16} />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+
+                  {visiblePlans.length === 0 && (
+                    <tr>
+                      <td colSpan={7} className="px-5 py-10 text-center text-slate-400 text-sm">
+                        <span className="block mb-1">
+                          {activeTab === "ALL"
+                            ? "No workforce plans yet."
+                            : `No ${activeTab.toLowerCase().replace("_", " ")} plans.`}
+                        </span>
+                        {isPlanner && activeTab === "ALL" && (
+                          <Link to="/workforce/plans/new" className="text-green-600 font-semibold hover:underline">
+                            Create your first plan
+                          </Link>
+                        )}
                       </td>
                     </tr>
-                  );
-                })}
-
-                {visiblePlans.length === 0 && (
-                  <tr>
-                    <td colSpan={7} className="empty-state">
-                      <span className="empty-state-text">
-                        {activeTab === "ALL"
-                          ? "No workforce plans yet."
-                          : `No ${activeTab.toLowerCase().replace("_", " ")} plans.`}
-                      </span>
-                      {isPlanner && activeTab === "ALL" && (
-                        <Link
-                          to="/workforce/plans/new"
-                          className="empty-state-link"
-                        >
-                          Create your first plan
-                        </Link>
-                      )}
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </>
       )}

@@ -10,24 +10,27 @@ import StatusBadge from "../../components/common/StatusBadge";
 import { workforceService } from "../../services/workforceService";
 import { Vacancy } from "../../../utils/types";
 
-// Human-readable labels for the employment type enum
 const EMPLOYMENT_LABELS: Record<string, string> = {
   FULL_TIME: "Full-time",
   PART_TIME: "Part-time",
   CONTRACT: "Contract",
 };
 
-// Planning period label helper
 function periodLabel(v: Vacancy) {
   const base = v.planning_period === "ANNUAL" ? "Annual" : "Quarterly";
   return v.quarter ? `${base} · Q${v.quarter}` : base;
 }
 
+// Priority → left border color
+const priorityBorder: Record<string, string> = {
+  HIGH: "border-l-4 border-l-red-400",
+  MEDIUM: "border-l-4 border-l-yellow-400",
+  LOW: "border-l-4 border-l-slate-300",
+};
+
 export default function VacanciesPage() {
   const [vacancies, setVacancies] = useState<Vacancy[]>([]);
   const [loading, setLoading] = useState(true);
-
-  // Filter state
   const [search, setSearch] = useState("");
   const [filterDept, setFilterDept] = useState("ALL");
   const [filterPriority, setFilterPriority] = useState("ALL");
@@ -41,7 +44,6 @@ export default function VacanciesPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  // Unique department options derived from the data
   const deptOptions = Array.from(
     new Map(
       vacancies
@@ -50,7 +52,6 @@ export default function VacanciesPage() {
     ).entries(),
   ).sort((a, b) => a[1].localeCompare(b[1]));
 
-  // Apply all filters
   const filtered = vacancies.filter((v) => {
     if (
       search &&
@@ -65,111 +66,82 @@ export default function VacanciesPage() {
     return true;
   });
 
-  // KPI counts
   const totalOpenings = vacancies.reduce((s, v) => s + v.count, 0);
-  const criticalCount = vacancies
-    .filter((v) => v.priority === "HIGH")
-    .reduce((s, v) => s + v.count, 0);
+  const criticalCount = vacancies.filter((v) => v.priority === "HIGH").reduce((s, v) => s + v.count, 0);
   const deptCount = new Set(vacancies.map((v) => v.department?.id)).size;
 
+  const selectCls = "px-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-green-500 bg-white text-slate-700 transition-colors";
+
   return (
-    <div className="vacancies-page">
-      {/* ── Page header ── */}
-      <div className="page-header">
+    <div className="flex flex-col gap-6">
+      {/* Page header */}
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="page-title">Open Vacancies</h1>
-          <p className="page-description">
+          <h1 className="text-2xl font-bold text-slate-900">Open Vacancies</h1>
+          <p className="text-sm text-slate-500 mt-1">
             All positions authorised by CEO approval and open for recruitment.
           </p>
         </div>
       </div>
 
       {loading ? (
-        <div className="page-loading">
-          <div className="loader-icon" />
+        <div className="flex items-center justify-center h-64">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-200 border-t-green-600" />
         </div>
       ) : (
         <>
-          {/* ── KPI strip ── */}
-          <div className="vacancy-kpi-strip">
-            <div className="vacancy-kpi-item">
-              <span className="vacancy-kpi-icon vacancy-kpi-icon-blue">
+          {/* KPI strip */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="bg-white rounded-xl border border-slate-200 p-4 flex items-center gap-4">
+              <span className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 flex-shrink-0">
                 <FiBriefcase size={18} />
               </span>
               <div>
-                <p className="vacancy-kpi-value">{totalOpenings}</p>
-                <p className="vacancy-kpi-label">Total Openings</p>
+                <p className="text-2xl font-bold text-slate-800">{totalOpenings}</p>
+                <p className="text-xs text-slate-500">Total Openings</p>
               </div>
             </div>
-            <div className="vacancy-kpi-item">
-              <span className="vacancy-kpi-icon vacancy-kpi-icon-red">
+            <div className="bg-white rounded-xl border border-slate-200 p-4 flex items-center gap-4">
+              <span className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-red-500 flex-shrink-0">
                 <FiAlertCircle size={18} />
               </span>
               <div>
-                <p className="vacancy-kpi-value">{criticalCount}</p>
-                <p className="vacancy-kpi-label">Critical Roles</p>
+                <p className="text-2xl font-bold text-slate-800">{criticalCount}</p>
+                <p className="text-xs text-slate-500">Critical Roles</p>
               </div>
             </div>
-            <div className="vacancy-kpi-item">
-              <span className="vacancy-kpi-icon vacancy-kpi-icon-green">
+            <div className="bg-white rounded-xl border border-slate-200 p-4 flex items-center gap-4">
+              <span className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center text-green-600 flex-shrink-0">
                 <FiUsers size={18} />
               </span>
               <div>
-                <p className="vacancy-kpi-value">{deptCount}</p>
-                <p className="vacancy-kpi-label">Departments Hiring</p>
+                <p className="text-2xl font-bold text-slate-800">{deptCount}</p>
+                <p className="text-xs text-slate-500">Departments Hiring</p>
               </div>
             </div>
           </div>
 
-          {/* ── Filters toolbar ── */}
-          <div className="vacancy-toolbar">
-            {/* Search */}
-            <div className="vacancy-search-wrapper">
-              <FiSearch className="vacancy-search-icon" size={15} />
-              <input
-                type="text"
-                placeholder="Search by position, plan, or department…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="vacancy-search-input"
-              />
+          {/* Filters toolbar */}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative flex-1 min-w-[200px]">
+              <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={15} />
+              <input type="text" placeholder="Search by position, plan, or department…"
+                value={search} onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg outline-none focus:border-green-500 bg-white text-slate-700 placeholder:text-slate-400 transition-colors" />
             </div>
-
-            <div className="vacancy-filter-group">
-              <FiFilter size={14} className="vacancy-filter-icon" />
-
-              {/* Department filter */}
-              <select
-                value={filterDept}
-                onChange={(e) => setFilterDept(e.target.value)}
-                className="vacancy-filter-select"
-              >
+            <div className="flex items-center gap-2 flex-wrap">
+              <FiFilter size={14} className="text-slate-400" />
+              <select value={filterDept} onChange={(e) => setFilterDept(e.target.value)} className={selectCls}>
                 <option value="ALL">All Departments</option>
-                {deptOptions.map(([id, name]) => (
-                  <option key={id} value={id}>
-                    {name}
-                  </option>
-                ))}
+                {deptOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
               </select>
-
-              {/* Priority filter */}
-              <select
-                value={filterPriority}
-                onChange={(e) => setFilterPriority(e.target.value)}
-                className="vacancy-filter-select"
-              >
+              <select value={filterPriority} onChange={(e) => setFilterPriority(e.target.value)} className={selectCls}>
                 <option value="ALL">All Priorities</option>
                 <option value="HIGH">High</option>
                 <option value="MEDIUM">Medium</option>
                 <option value="LOW">Low</option>
               </select>
-
-              {/* Employment type filter */}
-              <select
-                value={filterType}
-                onChange={(e) => setFilterType(e.target.value)}
-                className="vacancy-filter-select"
-              >
+              <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className={selectCls}>
                 <option value="ALL">All Types</option>
                 <option value="FULL_TIME">Full-time</option>
                 <option value="PART_TIME">Part-time</option>
@@ -178,85 +150,63 @@ export default function VacanciesPage() {
             </div>
           </div>
 
-          {/* ── Results count ── */}
+          {/* Results count */}
           {filtered.length > 0 && (
-            <p className="vacancy-result-count">
+            <p className="text-sm text-slate-500">
               Showing{" "}
-              <strong>
-                {filtered.reduce((s, v) => s + v.count, 0)} openings
-              </strong>{" "}
-              across <strong>{filtered.length} roles</strong>
+              <strong className="text-slate-700">{filtered.reduce((s, v) => s + v.count, 0)} openings</strong>
+              {" "}across{" "}
+              <strong className="text-slate-700">{filtered.length} roles</strong>
             </p>
           )}
 
-          {/* ── Vacancy cards grid ── */}
+          {/* Vacancy cards grid */}
           {filtered.length === 0 ? (
-            <div className="vacancy-empty">
-              <FiBriefcase size={40} className="vacancy-empty-icon" />
-              <p className="vacancy-empty-title">
-                {vacancies.length === 0
-                  ? "No approved vacancies yet"
-                  : "No results match your filters"}
+            <div className="flex flex-col items-center justify-center py-16 gap-3 text-center">
+              <FiBriefcase size={40} className="text-slate-300" />
+              <p className="text-base font-semibold text-slate-600">
+                {vacancies.length === 0 ? "No approved vacancies yet" : "No results match your filters"}
               </p>
-              <p className="vacancy-empty-sub">
+              <p className="text-sm text-slate-400 max-w-sm">
                 {vacancies.length === 0
                   ? "Positions will appear here once a workforce plan has been approved by the CEO."
                   : "Try adjusting your search or filter criteria."}
               </p>
-              {(search ||
-                filterDept !== "ALL" ||
-                filterPriority !== "ALL" ||
-                filterType !== "ALL") && (
+              {(search || filterDept !== "ALL" || filterPriority !== "ALL" || filterType !== "ALL") && (
                 <button
-                  className="vacancy-clear-btn"
-                  onClick={() => {
-                    setSearch("");
-                    setFilterDept("ALL");
-                    setFilterPriority("ALL");
-                    setFilterType("ALL");
-                  }}
+                  className="mt-2 inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-slate-600 border border-slate-200 rounded-lg bg-white hover:bg-slate-50 transition-colors"
+                  onClick={() => { setSearch(""); setFilterDept("ALL"); setFilterPriority("ALL"); setFilterType("ALL"); }}
                 >
                   Clear filters
                 </button>
               )}
             </div>
           ) : (
-            <div className="vacancy-grid">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {filtered.map((v, idx) => (
-                <div
-                  key={v.id ?? `${v.plan_id}-${idx}`}
-                  className={`vacancy-card vacancy-card-priority-${v.priority.toLowerCase()}`}
-                >
-                  {/* Card header: priority badge + employment type */}
-                  <div className="vacancy-card-header">
-                    <StatusBadge status={v.priority} />
-                    <span className="vacancy-card-type">
-                      {EMPLOYMENT_LABELS[v.employment_type] ?? v.employment_type}
-                    </span>
-                  </div>
-
-                  {/* Position title + headcount */}
-                  <div className="vacancy-card-title-row">
-                    <h3 className="vacancy-card-title">{v.title}</h3>
-                    {v.count > 1 && (
-                      <span className="vacancy-card-count">×{v.count}</span>
+                <div key={v.id ?? `${v.plan_id}-${idx}`}
+                  className={`bg-white rounded-xl border border-slate-200 overflow-hidden ${priorityBorder[v.priority] ?? ""}`}>
+                  <div className="p-4 flex flex-col gap-3">
+                    <div className="flex items-center justify-between">
+                      <StatusBadge status={v.priority} />
+                      <span className="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-1 rounded-full">
+                        {EMPLOYMENT_LABELS[v.employment_type] ?? v.employment_type}
+                      </span>
+                    </div>
+                    <div className="flex items-start justify-between gap-2">
+                      <h3 className="text-base font-semibold text-slate-800 leading-tight">{v.title}</h3>
+                      {v.count > 1 && (
+                        <span className="text-sm font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full flex-shrink-0">×{v.count}</span>
+                      )}
+                    </div>
+                    {v.department && (
+                      <p className="text-sm text-slate-500">{v.department.name}</p>
                     )}
-                  </div>
-
-                  {/* Department */}
-                  {v.department && (
-                    <p className="vacancy-card-dept">{v.department.name}</p>
-                  )}
-
-                  {/* Divider */}
-                  <hr className="vacancy-card-divider" />
-
-                  {/* Footer meta: plan title + period */}
-                  <div className="vacancy-card-footer">
-                    <p className="vacancy-card-plan">{v.plan_title}</p>
-                    <span className="vacancy-card-period">
-                      FY{v.fiscal_year} · {periodLabel(v)}
-                    </span>
+                    <hr className="border-slate-100" />
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-medium text-slate-600 truncate">{v.plan_title}</p>
+                      <span className="text-xs text-slate-400 flex-shrink-0 ml-2">FY{v.fiscal_year} · {periodLabel(v)}</span>
+                    </div>
                   </div>
                 </div>
               ))}

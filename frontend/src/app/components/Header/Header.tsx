@@ -2,32 +2,6 @@
  * components/Header/Header.tsx
  *
  * Sticky top bar rendered inside AppLayout above every authenticated page.
- *
- * Layout (left → right):
- *   1. Sidebar toggle button — shows FiMenu when sidebar is closed, FiX when
- *      open. Clicking it calls onToggleSidebar() which flips sidebarOpen in
- *      AppLayout. aria-label and title update accordingly for accessibility.
- *
- *   2. Search bar — a text input with a magnifying-glass icon. Currently a
- *      UI placeholder; search logic is not yet wired to any data source.
- *
- *   3. Action icons — three icon buttons on the right:
- *        Bell (FiBell)       — notifications; has a red dot badge.
- *        Help (FiHelpCircle) — help/documentation link.
- *        Settings (FiSettings) — settings shortcut.
- *
- *   4. Profile section — shows the authenticated user's name and role/title,
- *      an avatar circle with their initial, and a Logout button.
- *      - user comes from AuthContext via useAuth().
- *      - The avatar displays the first character of full_name, capitalised.
- *      - The role line shows user.title if set, otherwise falls back to role.
- *      - Clicking Logout calls logout() from AuthContext, which clears
- *        localStorage and resets the user state, triggering a redirect to /login.
- *
- * Props:
- *   onToggleSidebar  () => void  — callback fired when the toggle button is clicked.
- *   sidebarOpen      boolean     — current sidebar state; used to choose the icon
- *                                  and aria-label on the toggle button.
  */
 import {
   FiBell,
@@ -48,62 +22,60 @@ export default function Header({ onToggleSidebar, sidebarOpen }: HeaderProps) {
   const { user, logout } = useAuth();
 
   return (
-    <header className="header">
+    <header className="min-h-[3.75rem] bg-white border-b border-slate-200 flex flex-wrap items-center justify-between px-6 py-3 sticky top-0 z-20 gap-3">
       {/* ── Sidebar toggle ── */}
       <button
-        className="header-sidebar-toggle"
+        className="flex items-center justify-center flex-shrink-0 w-9 h-9 rounded-lg border-none bg-transparent text-slate-500 cursor-pointer transition-all hover:bg-slate-100 hover:text-slate-800"
         onClick={onToggleSidebar}
         aria-label={sidebarOpen ? "Close sidebar" : "Open sidebar"}
         title={sidebarOpen ? "Close sidebar" : "Open sidebar"}
       >
-        {/* Show X when open so the user knows clicking will close it */}
         {sidebarOpen ? <FiX size={20} /> : <FiMenu size={20} />}
       </button>
 
       {/* ── Search bar ── */}
-      <div className="header-search">
-        <div className="header-search-wrapper">
-          <FiSearch className="header-search-icon" size={16} />
+      <div className="flex items-center flex-1 max-w-[22rem]">
+        <div className="relative flex-1">
+          <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
           <input
             type="text"
             placeholder="Search planning data..."
-            className="header-search-input"
+            className="w-full py-2 pl-9 pr-4 rounded-lg border border-slate-200 bg-slate-50 text-sm text-slate-800 outline-none transition-all focus:border-green-600 focus:bg-white"
           />
         </div>
       </div>
 
       {/* ── Right-side action icons + profile ── */}
-      <div className="header-actions">
+      <div className="flex items-center gap-2">
         {/* Notification bell with a red dot indicator */}
-        <button className="header-icon-btn" aria-label="Notifications">
+        <button className="bg-transparent border-none cursor-pointer text-slate-500 transition-all relative p-2 flex items-center justify-center rounded-lg hover:bg-slate-100 hover:text-slate-800" aria-label="Notifications">
           <FiBell size={20} />
-          <span className="header-notification-badge" />
+          <span className="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full border-2 border-white" />
         </button>
 
         {/* Help and settings shortcut buttons */}
-        <button className="header-icon-btn" aria-label="Help">
+        <button className="bg-transparent border-none cursor-pointer text-slate-500 transition-all p-2 flex items-center justify-center rounded-lg hover:bg-slate-100 hover:text-slate-800" aria-label="Help">
           <FiHelpCircle size={20} />
         </button>
-        <button className="header-icon-btn" aria-label="Settings">
+        <button className="bg-transparent border-none cursor-pointer text-slate-500 transition-all p-2 flex items-center justify-center rounded-lg hover:bg-slate-100 hover:text-slate-800" aria-label="Settings">
           <FiSettings size={20} />
         </button>
 
         {/* ── User profile block ── */}
-        <div className="header-profile">
+        <div className="flex items-center gap-2.5 pl-3 border-l border-slate-200 ml-1">
           {/* Name and role/title text — hidden on mobile via CSS */}
-          <div className="header-profile-info">
-            <p className="header-profile-name">{user?.full_name || "User"}</p>
-            {/* Show custom title if set, fall back to the role enum value */}
-            <p className="header-profile-role">{user?.title || user?.role}</p>
+          <div className="text-right hidden sm:block">
+            <p className="text-sm font-semibold text-slate-800 m-0 leading-tight">{user?.full_name || "User"}</p>
+            <p className="text-[0.7rem] text-slate-400 m-0 uppercase tracking-wider font-medium">{user?.title || user?.role}</p>
           </div>
 
           {/* Avatar circle — shows the first letter of the user's name */}
-          <div className="header-profile-avatar">
+          <div className="h-[2.1rem] w-[2.1rem] rounded-full bg-green-600 text-white flex items-center justify-center text-sm font-bold flex-shrink-0">
             {user?.full_name?.charAt(0)?.toUpperCase() || "U"}
           </div>
 
           {/* Logout clears the session and redirects to /login via AuthContext */}
-          <button onClick={logout} className="header-logout-btn">
+          <button onClick={logout} className="rounded-lg border border-slate-200 py-1.5 px-3 text-xs font-semibold text-slate-500 bg-white cursor-pointer transition-all hover:bg-red-50 hover:border-red-300 hover:text-red-600">
             Logout
           </button>
         </div>
@@ -111,3 +83,4 @@ export default function Header({ onToggleSidebar, sidebarOpen }: HeaderProps) {
     </header>
   );
 }
+
