@@ -64,13 +64,22 @@ export const authService = {
   completeProfile: (title: string) =>
     api.patch("/auth/complete-profile", { title }),
   getUsers: () => api.get("/auth/users"),
+  getRoles: () => api.get("/auth/roles"),
   getRolePermissions: () => api.get("/auth/roles/permissions"),
+  createRole: (data: {
+    name: string;
+    display_name: string;
+    description?: string;
+  }) => api.post("/auth/roles/create", data),
   updateRolePermissions: (role: string, permissions: string[]) =>
     api.patch(`/auth/roles/${role}/permissions`, { permissions }),
+  deleteRole: (name: string) => api.delete(`/auth/roles/${name}`),
   getUserResourcePermissions: (userId: string) =>
     api.get(`/auth/users/${userId}/resource-permissions`),
-  setUserResourcePermissions: (userId: string, patches: Array<{ resource: string; action: string; level: string }>) =>
-    api.put(`/auth/users/${userId}/resource-permissions`, { patches }),
+  setUserResourcePermissions: (
+    userId: string,
+    patches: Array<{ resource: string; action: string; level: string }>,
+  ) => api.put(`/auth/users/${userId}/resource-permissions`, { patches }),
 };
 
 /** Workforce-planning API calls — all require a valid, verified JWT */

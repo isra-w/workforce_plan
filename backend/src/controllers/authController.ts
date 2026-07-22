@@ -233,7 +233,7 @@ export const updateRolePermissions = async (
   next: NextFunction,
 ) => {
   try {
-    const role = authService.parseRole(req.params.role);
+    const role = req.params.role;
     if (!role) {
       return res.status(400).json({ status: "fail", message: "Invalid role" });
     }
@@ -314,6 +314,118 @@ export const setResourcePermissions = async (
     }
     const grid = await authService.setUserPermissionGrid(req.params.id, patches);
     res.status(200).json({ status: "success", data: { permissions: grid } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ---------------------------------------------------------------------------
+// getAllRoles — GET /roles
+// Returns all system and custom roles
+// ---------------------------------------------------------------------------
+export const getAllRoles = async (
+  _req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const roles = await authService.getAllRoles();
+    res.status(200).json({ status: "success", data: { roles } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ---------------------------------------------------------------------------
+// createRole — POST /roles
+// Creates a new custom role (HR_ADMIN only)
+// ---------------------------------------------------------------------------
+export const createRole = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { name, display_name, description } = req.body;
+
+    if (!name || !display_name) {
+      return res.status(400).json({
+        status: "fail",
+        message: "Role name and display name are required",
+      });
+    }
+
+    // Validate name format (uppercase with underscores only)
+    if (!/^[A-Z_]+$/.test(name)) {
+      return res.status(400).json({
+        status: "fail",
+        message: "Role name must be uppercase letters and underscores only",
+      });
+    }
+
+    try {
+      const role = await authService.createCustomRole({
+        name,
+        display_name,
+        description,
+      });
+
+      res.status(201).json({
+        status: "success",
+        message: "Role created successfully",
+        data: { role },
+      });
+    } catch (err: unknown) {
+      if ((err as Error).message === "ROLE_EXISTS") {
+        return res.status(400).json({
+          status: "fail",
+          message: "A role with this name already exists",
+        });
+      }
+      throw err;
+    }
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ---------------------------------------------------------------------------
+// deleteRole — DELETE /roles/:name
+// Deletes a custom role (HR_ADMIN only, cannot delete system roles)
+// ---------------------------------------------------------------------------
+export const deleteRole = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { name } = req.params;
+
+    try {
+      await authService.deleteCustomRole(name);
+      res.status(200).json({
+        status: "success",
+        message: "Role deleted successfully",
+      });
+    } catch (err: unknown) {
+      const msg = (err as Error).message;
+      if (msg === "ROLE_NOT_FOUND") {
+        return res.status(404).json({ status: "fail", message: "Role not found" });
+      }
+      if (msg === "CANNOT_DELETE_SYSTEM_ROLE") {
+        return res.status(400).json({
+          status: "fail",
+          message: "Cannot delete system roles",
+        });
+      }
+      if (msg === "ROLE_IN_USE") {
+        return res.status(400).json({
+          status: "fail",
+          message: "Cannot delete role that is assigned to users",
+        });
+      }
+      throw err;
+    }
   } catch (error) {
     next(error);
   }

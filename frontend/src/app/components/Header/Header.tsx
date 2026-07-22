@@ -1,8 +1,3 @@
-/**
- * components/Header/Header.tsx
- *
- * Sticky top bar rendered inside AppLayout above every authenticated page.
- */
 import {
   FiBell,
   FiHelpCircle,
@@ -12,7 +7,6 @@ import {
   FiX,
 } from "react-icons/fi";
 import { useAuth } from "../../context/AuthContext";
-
 interface HeaderProps {
   onToggleSidebar: () => void;
   sidebarOpen: boolean;
@@ -36,7 +30,10 @@ export default function Header({ onToggleSidebar, sidebarOpen }: HeaderProps) {
       {/* ── Search bar ── */}
       <div className="flex items-center flex-1 max-w-[22rem]">
         <div className="relative flex-1">
-          <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
+          <FiSearch
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+            size={16}
+          />
           <input
             type="text"
             placeholder="Search planning data..."
@@ -48,16 +45,25 @@ export default function Header({ onToggleSidebar, sidebarOpen }: HeaderProps) {
       {/* ── Right-side action icons + profile ── */}
       <div className="flex items-center gap-2">
         {/* Notification bell with a red dot indicator */}
-        <button className="bg-transparent border-none cursor-pointer text-slate-500 transition-all relative p-2 flex items-center justify-center rounded-lg hover:bg-slate-100 hover:text-slate-800" aria-label="Notifications">
+        <button
+          className="bg-transparent border-none cursor-pointer text-slate-500 transition-all relative p-2 flex items-center justify-center rounded-lg hover:bg-slate-100 hover:text-slate-800"
+          aria-label="Notifications"
+        >
           <FiBell size={20} />
           <span className="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full border-2 border-white" />
         </button>
 
         {/* Help and settings shortcut buttons */}
-        <button className="bg-transparent border-none cursor-pointer text-slate-500 transition-all p-2 flex items-center justify-center rounded-lg hover:bg-slate-100 hover:text-slate-800" aria-label="Help">
+        <button
+          className="bg-transparent border-none cursor-pointer text-slate-500 transition-all p-2 flex items-center justify-center rounded-lg hover:bg-slate-100 hover:text-slate-800"
+          aria-label="Help"
+        >
           <FiHelpCircle size={20} />
         </button>
-        <button className="bg-transparent border-none cursor-pointer text-slate-500 transition-all p-2 flex items-center justify-center rounded-lg hover:bg-slate-100 hover:text-slate-800" aria-label="Settings">
+        <button
+          className="bg-transparent border-none cursor-pointer text-slate-500 transition-all p-2 flex items-center justify-center rounded-lg hover:bg-slate-100 hover:text-slate-800"
+          aria-label="Settings"
+        >
           <FiSettings size={20} />
         </button>
 
@@ -65,8 +71,12 @@ export default function Header({ onToggleSidebar, sidebarOpen }: HeaderProps) {
         <div className="flex items-center gap-2.5 pl-3 border-l border-slate-200 ml-1">
           {/* Name and role/title text — hidden on mobile via CSS */}
           <div className="text-right hidden sm:block">
-            <p className="text-sm font-semibold text-slate-800 m-0 leading-tight">{user?.full_name || "User"}</p>
-            <p className="text-[0.7rem] text-slate-400 m-0 uppercase tracking-wider font-medium">{user?.title || user?.role}</p>
+            <p className="text-sm font-semibold text-slate-800 m-0 leading-tight">
+              {user?.full_name || "User"}
+            </p>
+            <p className="text-[0.7rem] text-slate-400 m-0 uppercase tracking-wider font-medium">
+              {user?.title || user?.role}
+            </p>
           </div>
 
           {/* Avatar circle — shows the first letter of the user's name */}
@@ -75,7 +85,10 @@ export default function Header({ onToggleSidebar, sidebarOpen }: HeaderProps) {
           </div>
 
           {/* Logout clears the session and redirects to /login via AuthContext */}
-          <button onClick={logout} className="rounded-lg border border-slate-200 py-1.5 px-3 text-xs font-semibold text-slate-500 bg-white cursor-pointer transition-all hover:bg-red-50 hover:border-red-300 hover:text-red-600">
+          <button
+            onClick={logout}
+            className="rounded-lg border border-slate-200 py-1.5 px-3 text-xs font-semibold text-slate-500 bg-white cursor-pointer transition-all hover:bg-red-50 hover:border-red-300 hover:text-red-600"
+          >
             Logout
           </button>
         </div>
@@ -83,4 +96,3 @@ export default function Header({ onToggleSidebar, sidebarOpen }: HeaderProps) {
     </header>
   );
 }
-

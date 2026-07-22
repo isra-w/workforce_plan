@@ -15,6 +15,19 @@ enum UserRole {
   HR_ADMIN
 }
 
+model CustomRole {
+  id           String   @id @default(uuid())
+  name         String   @unique
+  display_name String
+  description  String?
+  is_system    Boolean  @default(false)
+  is_active    Boolean  @default(true)
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  @@map("custom_roles")
+}
+
 enum PlanningPeriod {
   ANNUAL
   QUARTERLY
@@ -45,7 +58,7 @@ model User {
   email              String          @unique
   password_hash      String
   full_name          String
-  role               UserRole        @default(WORKFORCE_PLANNER)
+  role               String          @default("WORKFORCE_PLANNER")
   title              String?
   permissions        String[]        @default([])
   is_verified        Boolean         @default(false)
@@ -62,7 +75,7 @@ model User {
 }
 
 model RolePermission {
-  role        UserRole @id
+  role        String   @id
   permissions String[] @default([])
   created_at  DateTime @default(now())
   updated_at  DateTime @updatedAt

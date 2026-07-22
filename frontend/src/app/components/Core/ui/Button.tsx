@@ -1,12 +1,4 @@
-/**
- * components/Core/ui/Button.tsx
- *
- * A reusable button component that extends the native <button> element with
- * variant styling, a loading spinner, optional full-width layout, and a
- * leading icon slot.
- */
 import { ButtonHTMLAttributes, ReactNode } from "react";
-
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: "primary" | "secondary" | "ghost" | "danger";
   loading?: boolean;

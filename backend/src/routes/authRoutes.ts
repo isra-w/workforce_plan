@@ -29,6 +29,9 @@ import {
   updateRolePermissions,
   getResourcePermissions,
   setResourcePermissions,
+  getAllRoles,
+  createRole,
+  deleteRole,
 } from "src/controllers/authController";
 import { protect, requireRoles } from "src/middleware/authMiddleware";
 
@@ -39,6 +42,9 @@ router.post("/register", register);
 router.post("/login", login);
 router.get("/verify/:token", verifyEmail);
 router.post("/resend-verification", resendVerification);
+
+// Public endpoint to get all available roles for signup
+router.get("/roles", getAllRoles);
 
 // ── Protected (JWT required) ──────────────────────────────────────────────
 router.use(protect);
@@ -68,5 +74,9 @@ router.put(
   requireRoles("HR_ADMIN"),
   setResourcePermissions,
 );
+
+// ── Role Management (HR_ADMIN only) ──────────────────────────────────────
+router.post("/roles/create", requireRoles("HR_ADMIN"), createRole);
+router.delete("/roles/:name", requireRoles("HR_ADMIN"), deleteRole);
 
 export default router;
