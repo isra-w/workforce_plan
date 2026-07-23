@@ -6,12 +6,17 @@
  * so callers can await the result and access the response via res.data.
  *
  * authService — methods that talk to /api/auth/*:
- *   login              POST /auth/login              — returns JWT + user
- *   register           POST /auth/register           — returns verificationToken
- *   verifyEmail        GET  /auth/verify/:token      — confirms email, returns JWT
- *   resendVerification POST /auth/resend-verification — sends a new token
- *   getMe              GET  /auth/me                 — returns current user profile
- *   completeProfile    PATCH /auth/complete-profile  — updates optional job title
+ *   login              POST /auth/login
+ *   register           POST /auth/register
+ *   verifyEmail        GET  /auth/verify/:token
+ *   resendVerification POST /auth/resend-verification
+ *   getMe              GET  /auth/me
+ *   getUsers           GET  /auth/users
+ *   getRoles           GET  /auth/roles
+ *   getRolePermissions GET  /auth/roles/permissions
+ *   createRole         POST /auth/roles/create
+ *   updateRolePermissions PATCH /auth/roles/:role/permissions
+ *   deleteRole         DELETE /auth/roles/:name
  *
  * workforceService — methods that talk to /api/workforce/*:
  *   getDashboard       GET    /workforce/dashboard         — KPIs + dept stats
@@ -60,26 +65,14 @@ export const authService = {
   /** Returns the current authenticated user's profile (requires valid JWT) */
   getMe: () => api.get("/auth/me"),
 
-  /** Updates the authenticated user's optional job title */
-  completeProfile: (title: string) =>
-    api.patch("/auth/complete-profile", { title }),
   getUsers: () => api.get("/auth/users"),
   getRoles: () => api.get("/auth/roles"),
   getRolePermissions: () => api.get("/auth/roles/permissions"),
-  createRole: (data: {
-    name: string;
-    display_name: string;
-    description?: string;
-  }) => api.post("/auth/roles/create", data),
+  createRole: (data: { name: string; display_name: string; description?: string }) =>
+    api.post("/auth/roles/create", data),
   updateRolePermissions: (role: string, permissions: string[]) =>
     api.patch(`/auth/roles/${role}/permissions`, { permissions }),
   deleteRole: (name: string) => api.delete(`/auth/roles/${name}`),
-  getUserResourcePermissions: (userId: string) =>
-    api.get(`/auth/users/${userId}/resource-permissions`),
-  setUserResourcePermissions: (
-    userId: string,
-    patches: Array<{ resource: string; action: string; level: string }>,
-  ) => api.put(`/auth/users/${userId}/resource-permissions`, { patches }),
 };
 
 /** Workforce-planning API calls — all require a valid, verified JWT */

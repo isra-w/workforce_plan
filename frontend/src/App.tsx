@@ -32,10 +32,6 @@
  *   CANDIDATE (protected + verified):
  *     /workforce            → WorkforceDashboard
  *     /workforce/candidates → PlaceholderPage
- *
- *   All roles:
- *     /settings             → PlaceholderPage
- *     unknown path          → redirect /workforce
  */
 import {
   createBrowserRouter,

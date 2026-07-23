@@ -54,7 +54,6 @@ export const protect = async (
         full_name: true,
         is_verified: true,
         is_active: true,
-        title: true,
       },
     });
 

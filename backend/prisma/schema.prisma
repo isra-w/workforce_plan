@@ -7,14 +7,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum UserRole {
-  WORKFORCE_PLANNER
-  HR
-  CEO
-  CANDIDATE
-  HR_ADMIN
-}
-
 model CustomRole {
   id           String   @id @default(uuid())
   name         String   @unique
@@ -59,7 +51,6 @@ model User {
   password_hash      String
   full_name          String
   role               String          @default("WORKFORCE_PLANNER")
-  title              String?
   permissions        String[]        @default([])
   is_verified        Boolean         @default(false)
   verification_token String?
@@ -69,7 +60,6 @@ model User {
   plans              WorkforcePlan[]
   plan_versions      PlanVersion[]
   approval_logs      ApprovalLog[]
-  user_permissions   UserPermission[]
 
   @@map("users")
 }
@@ -81,23 +71,6 @@ model RolePermission {
   updated_at  DateTime @updatedAt
 
   @@map("role_permissions")
-}
-
-// UserPermission
-// Stores one row per user × resource × action combination.
-
-model UserPermission {
-  id         String   @id @default(uuid())
-  user_id    String
-  resource   String
-  action     String   // READ | CREATE | UPDATE | DELETE
-  level      String   @default("N/A") // N/A | Own | Team | Any
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
-  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
-
-  @@unique([user_id, resource, action])
-  @@map("user_permissions")
 }
 
 

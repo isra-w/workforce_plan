@@ -2,8 +2,7 @@
  * services/authService.ts
  *
  * All database interactions and business logic for user authentication,
- * registration, verification, profile management, and role/permission
- * management.
+ * registration, verification, and role/permission management.
  *
  * Controllers call these methods and only deal with HTTP concerns.
  * No Express types live here.
@@ -20,16 +19,6 @@ import {
 // Constants
 // ---------------------------------------------------------------------------
 
-/** System role names — kept as strings since the DB column is now TEXT */
-export const SYSTEM_ROLES = [
-  "WORKFORCE_PLANNER",
-  "HR",
-  "CEO",
-  "CANDIDATE",
-  "HR_ADMIN",
-] as const;
-export type SystemRole = (typeof SYSTEM_ROLES)[number];
-
 export const validPermissions = [
   "VIEW_DASHBOARD",
   "MANAGE_WORKFORCE_PLANS",
@@ -41,7 +30,6 @@ export const validPermissions = [
   "VIEW_OFFERS",
   "VIEW_ANALYTICS",
   "MANAGE_ROLES",
-  "MANAGE_PERMISSIONS",
 ] as const;
 
 export type PermissionValue = (typeof validPermissions)[number];
@@ -56,10 +44,10 @@ export const defaultPermissionsByRole: Record<string, PermissionValue[]> = {
     "VIEW_OFFERS",
     "VIEW_ANALYTICS",
   ],
-  HR: ["VIEW_DASHBOARD", "VIEW_HR_REVIEW"],
-  CEO: ["VIEW_DASHBOARD", "VIEW_CEO_REVIEW"],
+  HR:        ["VIEW_DASHBOARD", "VIEW_HR_REVIEW"],
+  CEO:       ["VIEW_DASHBOARD", "VIEW_CEO_REVIEW"],
   CANDIDATE: ["VIEW_DASHBOARD", "VIEW_CANDIDATES"],
-  HR_ADMIN: ["VIEW_DASHBOARD", "MANAGE_ROLES", "MANAGE_PERMISSIONS"],
+  HR_ADMIN:  ["VIEW_DASHBOARD", "MANAGE_ROLES"],
 };
 
 // Columns returned for every user query — never exposes password_hash or tokens
@@ -68,7 +56,6 @@ export const userSelect = {
   email: true,
   full_name: true,
   role: true,
-  title: true,
   permissions: true,
   is_verified: true,
   is_active: true,
@@ -92,14 +79,7 @@ export function normalizePermissions(input: unknown): string[] {
   );
 }
 
-export function parseRole(role: unknown): string | null {
-  if (typeof role !== "string") return null;
-  return role.trim() || null;
-}
-
-export async function getPermissionsForRole(
-  role: string,
-): Promise<PermissionValue[]> {
+export async function getPermissionsForRole(role: string): Promise<PermissionValue[]> {
   const row = await prisma.rolePermission.findUnique({ where: { role } });
   if (row && Array.isArray(row.permissions)) {
     return row.permissions.filter(
@@ -125,14 +105,11 @@ export interface RegisterInput {
 export async function registerUser(input: RegisterInput) {
   const normalizedEmail = input.email.trim().toLowerCase();
 
-  const existing = await prisma.user.findUnique({
-    where: { email: normalizedEmail },
-  });
+  const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
   if (existing) throw new Error("DUPLICATE_EMAIL");
 
   // Accept any active role from custom_roles table, default to WORKFORCE_PLANNER
   let selectedRole = "WORKFORCE_PLANNER";
-
   if (input.role) {
     const normalizedRole = input.role.trim();
     const roleExists = await prisma.customRole.findUnique({
@@ -166,14 +143,11 @@ export async function registerUser(input: RegisterInput) {
 export async function loginUser(email: string, password: string) {
   const normalizedEmail = email.trim().toLowerCase();
 
-  const user = await prisma.user.findUnique({
-    where: { email: normalizedEmail },
-  });
+  const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
 
   if (!user || !(await comparePassword(password, user.password_hash))) {
     throw new Error("INVALID_CREDENTIALS");
   }
-
   if (!user.is_active) throw new Error("ACCOUNT_INACTIVE");
 
   const token = generateToken(user.id, user.role);
@@ -186,7 +160,6 @@ export async function loginUser(email: string, password: string) {
       email: user.email,
       full_name: user.full_name,
       role: user.role,
-      title: user.title,
       permissions,
       is_verified: user.is_verified,
     },
@@ -198,9 +171,7 @@ export async function loginUser(email: string, password: string) {
 // ---------------------------------------------------------------------------
 
 export async function verifyUserEmail(token: string) {
-  const user = await prisma.user.findFirst({
-    where: { verification_token: token },
-  });
+  const user = await prisma.user.findFirst({ where: { verification_token: token } });
   if (!user) throw new Error("INVALID_TOKEN");
 
   const updated = await prisma.user.update({
@@ -222,9 +193,7 @@ export async function verifyUserEmail(token: string) {
 export async function resendVerificationToken(email: string) {
   const normalizedEmail = email.trim().toLowerCase();
 
-  const user = await prisma.user.findUnique({
-    where: { email: normalizedEmail },
-  });
+  const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
   if (!user) throw new Error("USER_NOT_FOUND");
   if (user.is_verified) throw new Error("ALREADY_VERIFIED");
 
@@ -242,25 +211,8 @@ export async function resendVerificationToken(email: string) {
 // ---------------------------------------------------------------------------
 
 export async function getUserById(id: string) {
-  const user = await prisma.user.findUnique({
-    where: { id },
-    select: userSelect,
-  });
+  const user = await prisma.user.findUnique({ where: { id }, select: userSelect });
   if (!user) return null;
-  const permissions = await getPermissionsForRole(user.role);
-  return { ...user, permissions };
-}
-
-// ---------------------------------------------------------------------------
-// Complete profile
-// ---------------------------------------------------------------------------
-
-export async function updateUserTitle(id: string, title: string | null) {
-  const user = await prisma.user.update({
-    where: { id },
-    data: { title: title || null },
-    select: userSelect,
-  });
   const permissions = await getPermissionsForRole(user.role);
   return { ...user, permissions };
 }
@@ -276,7 +228,6 @@ export async function listAllUsers() {
       email: true,
       full_name: true,
       role: true,
-      title: true,
       is_verified: true,
       is_active: true,
       created_at: true,
@@ -297,7 +248,6 @@ export async function listAllUsers() {
 // ---------------------------------------------------------------------------
 
 export async function listAllRolePermissions() {
-  // Single source of truth: custom_roles table (includes system roles inserted by migration)
   const customRoles = await prisma.customRole.findMany({
     where: { is_active: true },
     orderBy: [{ is_system: "desc" }, { display_name: "asc" }],
@@ -324,14 +274,14 @@ export async function listAllRolePermissions() {
 
 export async function setRolePermissions(role: string, permissions: string[]) {
   return prisma.rolePermission.upsert({
-    where: { role },
+    where:  { role },
     create: { role, permissions },
     update: { permissions },
   });
 }
 
 // ---------------------------------------------------------------------------
-// User permissions
+// User flat-permissions (stored on the user row for quick JWT lookup)
 // ---------------------------------------------------------------------------
 
 export async function setUserPermissions(id: string, permissions: string[]) {
@@ -340,106 +290,6 @@ export async function setUserPermissions(id: string, permissions: string[]) {
     data: { permissions },
     select: userSelect,
   });
-}
-
-// ---------------------------------------------------------------------------
-// Resource × action permissions
-// ---------------------------------------------------------------------------
-
-/** The canonical list of resources exposed in the permissions grid */
-export const RESOURCES = [
-  "Workforce Plans",
-  "Departments",
-  "Vacancies",
-  "Candidates",
-  "Interviews",
-  "Offers",
-  "Analytics",
-  "HR Review",
-  "CEO Review",
-  "Role Management",
-  "User Management",
-  "Attachments",
-  "Reports",
-] as const;
-
-export type Resource = (typeof RESOURCES)[number];
-
-export type PermissionLevel = "N/A" | "Own" | "Team" | "Any";
-export const PERMISSION_LEVELS: PermissionLevel[] = [
-  "N/A",
-  "Own",
-  "Team",
-  "Any",
-];
-
-/** Returns true if the level grants any access (Own, Team, or Any) */
-export function isGranted(level: string): boolean {
-  return level === "Own" || level === "Team" || level === "Any";
-}
-
-export const ACTIONS = ["READ", "CREATE", "UPDATE", "DELETE"] as const;
-export type Action = (typeof ACTIONS)[number];
-
-export interface UserPermissionRow {
-  resource: Resource;
-  READ: PermissionLevel;
-  CREATE: PermissionLevel;
-  UPDATE: PermissionLevel;
-  DELETE: PermissionLevel;
-}
-export async function getUserPermissionGrid(
-  userId: string,
-): Promise<UserPermissionRow[]> {
-  const rows = await prisma.userPermission.findMany({
-    where: { user_id: userId },
-  });
-
-  const map: Record<string, Record<string, PermissionLevel>> = {};
-  for (const row of rows) {
-    if (!map[row.resource]) map[row.resource] = {};
-    map[row.resource][row.action] = (row.level as PermissionLevel) ?? "N/A";
-  }
-
-  return RESOURCES.map((resource) => ({
-    resource,
-    READ: map[resource]?.["READ"] ?? "N/A",
-    CREATE: map[resource]?.["CREATE"] ?? "N/A",
-    UPDATE: map[resource]?.["UPDATE"] ?? "N/A",
-    DELETE: map[resource]?.["DELETE"] ?? "N/A",
-  }));
-}
-
-export interface PermissionPatch {
-  resource: string;
-  action: string;
-  level: PermissionLevel;
-}
-
-/** Upsert a batch of resource×action level grants for a user (full replacement) */
-export async function setUserPermissionGrid(
-  userId: string,
-  patches: PermissionPatch[],
-) {
-  await prisma.userPermission.deleteMany({ where: { user_id: userId } });
-
-  const data = patches
-    .filter(
-      (p) =>
-        ACTIONS.includes(p.action as Action) && p.resource && p.level !== "N/A",
-    )
-    .map((p) => ({
-      user_id: userId,
-      resource: p.resource,
-      action: p.action,
-      level: p.level,
-    }));
-
-  if (data.length > 0) {
-    await prisma.userPermission.createMany({ data });
-  }
-
-  return getUserPermissionGrid(userId);
 }
 
 // ---------------------------------------------------------------------------
@@ -460,61 +310,48 @@ export async function getAllRoles() {
   });
 
   return roles.map((role) => ({
-    id: role.id,
-    name: role.name,
+    id:           role.id,
+    name:         role.name,
     display_name: role.display_name,
-    description: role.description,
-    is_system: role.is_system,
-    is_active: role.is_active,
+    description:  role.description,
+    is_system:    role.is_system,
+    is_active:    role.is_active,
   }));
 }
 
 /** Create a new custom role */
 export async function createCustomRole(input: CreateRoleInput) {
-  // Check if role already exists
-  const existing = await prisma.customRole.findUnique({
-    where: { name: input.name },
-  });
+  const existing = await prisma.customRole.findUnique({ where: { name: input.name } });
   if (existing) throw new Error("ROLE_EXISTS");
 
-  // Create the role
   const role = await prisma.customRole.create({
     data: {
-      name: input.name,
+      name:         input.name,
       display_name: input.display_name,
-      description: input.description || null,
-      is_system: true,
-      is_active: true,
+      description:  input.description || null,
+      is_system:    false,   // user-created roles are never system roles
+      is_active:    true,
     },
   });
 
-  // Create empty role permissions entry
+  // Seed an empty permissions entry so the grid renders immediately
   await prisma.rolePermission.create({
-    data: {
-      role: input.name,
-      permissions: [],
-    },
+    data: { role: input.name, permissions: [] },
   });
 
   return role;
 }
 
-/** Delete a custom role (only user-created roles) */
+/** Delete a custom (non-system) role */
 export async function deleteCustomRole(name: string) {
   const role = await prisma.customRole.findUnique({ where: { name } });
 
   if (!role) throw new Error("ROLE_NOT_FOUND");
   if (role.is_system) throw new Error("CANNOT_DELETE_SYSTEM_ROLE");
 
-  // Check if any users have this role
-  const usersWithRole = await prisma.user.count({
-    where: { role: name },
-  });
+  const usersWithRole = await prisma.user.count({ where: { role: name } });
   if (usersWithRole > 0) throw new Error("ROLE_IN_USE");
 
-  // Delete role permissions
   await prisma.rolePermission.deleteMany({ where: { role: name } });
-
-  // Delete the role
   await prisma.customRole.delete({ where: { name } });
 }

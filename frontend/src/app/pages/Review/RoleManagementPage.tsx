@@ -11,7 +11,14 @@
 import { useEffect, useRef, useState } from "react";
 import { authService } from "../../services/workforceService";
 import { normalizePermissions, PermissionKey } from "../../utils/permissions";
-import { FiSearch, FiSave, FiUsers, FiChevronDown, FiX, FiTrash2 } from "react-icons/fi";
+import {
+  FiSearch,
+  FiSave,
+  FiUsers,
+  FiChevronDown,
+  FiX,
+  FiTrash2,
+} from "react-icons/fi";
 import toast from "react-hot-toast";
 
 // ── Scope type & helpers ──────────────────────────────────────────────────
@@ -19,23 +26,11 @@ import toast from "react-hot-toast";
 type Scope = "Denied" | "Allowed";
 const SCOPES: Scope[] = ["Denied", "Allowed"];
 
-function scopeLabel(s: Scope) {
-  return s;
-}
 function isActive(s: Scope) {
   return s === "Allowed";
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────
-
-interface CustomRole {
-  id: string;
-  name: string;
-  display_name: string;
-  description: string | null;
-  is_system: boolean;
-  is_active: boolean;
-}
 
 interface RoleRow {
   role: string;
@@ -120,45 +115,11 @@ const MODULES = [
   ...Array.from(new Set(RESOURCES.map((r) => r.module))),
 ];
 
-const ROLE_META: Record<
-  string,
-  { label: string; desc: string; isSystem: boolean }
-> = {
-  WORKFORCE_PLANNER: {
-    label: "Workforce Planner",
-    desc: "Creates and manages workforce plans.",
-    isSystem: true,
-  },
-  HR: {
-    label: "HR",
-    desc: "Reviews workforce plans and supports hiring workflows.",
-    isSystem: true,
-  },
-  CEO: {
-    label: "CEO",
-    desc: "Approves workforce plans and monitors overall outcomes.",
-    isSystem: true,
-  },
-  CANDIDATE: {
-    label: "Candidate",
-    desc: "Accesses candidate-related information and workflows.",
-    isSystem: true,
-  },
-  HR_ADMIN: {
-    label: "HR Admin",
-    desc: "Creates roles and manages platform permissions.",
-    isSystem: true,
-  },
-};
-
 function getRoleMeta(role: string) {
-  return (
-    ROLE_META[role] ?? {
-      label: role.replace(/_/g, " "),
-      desc: "Custom role with tailored permissions.",
-      isSystem: false,
-    }
-  );
+  return {
+    label: role.replace(/_/g, " "),
+    desc: "Custom role with tailored permissions.",
+  };
 }
 
 // ── ScopeDropdown ─────────────────────────────────────────────────────────
@@ -194,11 +155,11 @@ function ScopeDropdown({ value, disabled, onChange }: ScopeDropdownProps) {
         type="button"
         disabled={disabled}
         onClick={() => !disabled && setOpen((o) => !o)}
-        className={`inline-flex items-center gap-1 px-2 py-1.5 min-w-[72px] border border-slate-200 rounded-md bg-slate-50 text-slate-600 text-xs font-semibold cursor-pointer outline-none transition-all justify-between hover:border-slate-300 hover:bg-slate-100 ${
-          active ? "text-green-600" : ""
+        className={`inline-flex items-center gap-1 px-2 py-1.5 min-w-[72px] border border-slate-200 rounded-md bg-slate-50 text-xs font-semibold cursor-pointer outline-none transition-all justify-between hover:border-slate-300 hover:bg-slate-100 ${
+          active ? "text-green-600" : "text-red-600"
         } ${disabled ? "opacity-35 cursor-not-allowed hover:border-slate-200 hover:bg-slate-50" : ""}`}
       >
-        <span>{value}</span>
+        <span className={`${disabled ? "text-slate-400" : ""}`}>{value}</span>
         <FiChevronDown
           size={11}
           className={`flex-shrink-0 transition-transform ${open ? "rotate-180" : ""}`}
@@ -394,7 +355,8 @@ export default function RoleManagementPage() {
   };
 
   const handleDeleteRole = async (roleName: string, displayName: string) => {
-    if (!confirm(`Delete the "${displayName}" role? This cannot be undone.`)) return;
+    if (!confirm(`Delete the "${displayName}" role? This cannot be undone.`))
+      return;
     setDeletingRole(roleName);
     try {
       await authService.deleteRole(roleName);
@@ -402,7 +364,8 @@ export default function RoleManagementPage() {
       await loadRoles();
       toast.success(`"${displayName}" role deleted`);
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      const msg = (err as { response?: { data?: { message?: string } } })
+        ?.response?.data?.message;
       toast.error(msg ?? "Failed to delete role");
     } finally {
       setDeletingRole(null);
@@ -640,10 +603,11 @@ export default function RoleManagementPage() {
                         className="w-6 h-6 rounded-full flex items-center justify-center bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 transition-colors disabled:opacity-40"
                         title="Delete role"
                       >
-                        {deletingRole === r.role
-                          ? <span className="w-3 h-3 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
-                          : <FiTrash2 size={11} />
-                        }
+                        {deletingRole === r.role ? (
+                          <span className="w-3 h-3 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <FiTrash2 size={11} />
+                        )}
                       </button>
                     )}
                   </div>
