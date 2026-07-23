@@ -4,11 +4,8 @@
  * duplicate records.
  *
  * What it seeds:
- *   1. Departments — five business units with realistic baseline headcount
- *      figures (approved_hc, current_hc).
- *   2. Sample WorkforcePlans — two demo plans (DRAFT and SUBMITTED) linked to the
- *      first existing WORKFORCE_PLANNER user. Plans are only created if they do
- *      not already exist, preventing duplicates on re-seed.
+ *   1. Departments
+ *   2. WorkforcePlans — Plans are only created if they do not already exist, preventing duplicates on re-seed.
  */
 import { PrismaClient, PlanStatus } from "@prisma/client";
 
@@ -40,7 +37,7 @@ async function main() {
   }
   console.log("✓ Departments seeded");
 
-  // ── 2. Sample Plans ───────────────────────────────────────────────────────
+  // ── 2. WorkforcePlans ───────────────────────────────────────────────────────
   // Plans are only created when a WORKFORCE_PLANNER user already exists.
   // Register a user via the app first, then re-run the seed to get sample plans.
   const planner = await prisma.user.findFirst({
