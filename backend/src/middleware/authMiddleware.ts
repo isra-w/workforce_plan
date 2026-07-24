@@ -21,6 +21,64 @@ import { Request, Response, NextFunction } from "express";
 import { verifyToken } from "src/utils/auth";
 import { prisma } from "src/utils/prisma";
 
+export const validPermissions = [
+  "VIEW_DASHBOARD",
+  "MANAGE_WORKFORCE_PLANS",
+  "VIEW_VACANCIES",
+  "VIEW_CANDIDATES",
+  "VIEW_HR_REVIEW",
+  "VIEW_CEO_REVIEW",
+  "VIEW_INTERVIEWS",
+  "VIEW_OFFERS",
+  "VIEW_ANALYTICS",
+  "MANAGE_ROLES",
+] as const;
+
+export type PermissionValue = (typeof validPermissions)[number];
+
+export const defaultPermissionsByRole: Record<string, PermissionValue[]> = {
+  WORKFORCE_PLANNER: [
+    "VIEW_DASHBOARD",
+    "MANAGE_WORKFORCE_PLANS",
+    "VIEW_VACANCIES",
+    "VIEW_CANDIDATES",
+    "VIEW_INTERVIEWS",
+    "VIEW_OFFERS",
+    "VIEW_ANALYTICS",
+  ],
+  HR: ["VIEW_DASHBOARD", "VIEW_HR_REVIEW"],
+  CEO: ["VIEW_DASHBOARD", "VIEW_CEO_REVIEW"],
+  CANDIDATE: ["VIEW_DASHBOARD", "VIEW_CANDIDATES"],
+  HR_ADMIN: ["VIEW_DASHBOARD", "MANAGE_ROLES"],
+};
+
+export function normalizePermissions(input: unknown): string[] {
+  if (!Array.isArray(input)) return [];
+  return Array.from(
+    new Set(
+      input.filter(
+        (value): value is string =>
+          typeof value === "string" &&
+          (validPermissions as readonly string[]).includes(value),
+      ),
+    ),
+  );
+}
+
+export async function getPermissionsForRole(
+  role: string,
+): Promise<PermissionValue[]> {
+  const row = await prisma.rolePermission.findUnique({ where: { role } });
+  if (row && Array.isArray(row.permissions)) {
+    return row.permissions.filter(
+      (value): value is PermissionValue =>
+        typeof value === "string" &&
+        (validPermissions as readonly string[]).includes(value),
+    );
+  }
+  return defaultPermissionsByRole[role] ?? [];
+}
+
 export interface AuthRequest extends Request {
   user?: {
     id: string;
@@ -34,12 +92,14 @@ export interface AuthRequest extends Request {
 export const protect = async (
   req: AuthRequest,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ) => {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader?.startsWith("Bearer ")) {
-      return res.status(401).json({ status: "fail", message: "Not authorized" });
+      return res
+        .status(401)
+        .json({ status: "fail", message: "Not authorized" });
     }
 
     const token = authHeader.split(" ")[1];
@@ -58,7 +118,9 @@ export const protect = async (
     });
 
     if (!user || !user.is_active) {
-      return res.status(401).json({ status: "fail", message: "User not found" });
+      return res
+        .status(401)
+        .json({ status: "fail", message: "User not found" });
     }
 
     req.user = {
@@ -77,7 +139,7 @@ export const protect = async (
 export const requireVerified = (
   req: AuthRequest,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ) => {
   if (!req.user) {
     return res.status(401).json({ status: "fail", message: "Not authorized" });

@@ -174,7 +174,7 @@ function ScopeDropdown({ value, disabled, onChange }: ScopeDropdownProps) {
               key={s}
               className={`px-3 py-2 text-xs font-medium text-slate-700 cursor-pointer transition-colors hover:bg-slate-50 ${
                 s === value ? "bg-slate-100 font-bold" : ""
-              } ${isActive(s) ? "text-green-600 font-bold" : "text-red-600"}`}
+              } ${isActive(s) ? "text-green-600 font-bold" : "text-red-600 font-bold"}`}
               onClick={() => {
                 onChange(s);
                 setOpen(false);

@@ -14,41 +14,18 @@ import {
   generateToken,
   generateVerificationToken,
 } from "src/utils/auth";
+import {
+  defaultPermissionsByRole,
+  getPermissionsForRole,
+  normalizePermissions,
+  type PermissionValue,
+  validPermissions,
+} from "src/middleware/authMiddleware";
+import type { CreateRoleInput, RegisterInput } from "src/types/auth";
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
-
-export const validPermissions = [
-  "VIEW_DASHBOARD",
-  "MANAGE_WORKFORCE_PLANS",
-  "VIEW_VACANCIES",
-  "VIEW_CANDIDATES",
-  "VIEW_HR_REVIEW",
-  "VIEW_CEO_REVIEW",
-  "VIEW_INTERVIEWS",
-  "VIEW_OFFERS",
-  "VIEW_ANALYTICS",
-  "MANAGE_ROLES",
-] as const;
-
-export type PermissionValue = (typeof validPermissions)[number];
-
-export const defaultPermissionsByRole: Record<string, PermissionValue[]> = {
-  WORKFORCE_PLANNER: [
-    "VIEW_DASHBOARD",
-    "MANAGE_WORKFORCE_PLANS",
-    "VIEW_VACANCIES",
-    "VIEW_CANDIDATES",
-    "VIEW_INTERVIEWS",
-    "VIEW_OFFERS",
-    "VIEW_ANALYTICS",
-  ],
-  HR:        ["VIEW_DASHBOARD", "VIEW_HR_REVIEW"],
-  CEO:       ["VIEW_DASHBOARD", "VIEW_CEO_REVIEW"],
-  CANDIDATE: ["VIEW_DASHBOARD", "VIEW_CANDIDATES"],
-  HR_ADMIN:  ["VIEW_DASHBOARD", "MANAGE_ROLES"],
-};
 
 // Columns returned for every user query — never exposes password_hash or tokens
 export const userSelect = {
@@ -66,46 +43,16 @@ export const userSelect = {
 // Helpers
 // ---------------------------------------------------------------------------
 
-export function normalizePermissions(input: unknown): string[] {
-  if (!Array.isArray(input)) return [];
-  return Array.from(
-    new Set(
-      input.filter(
-        (value): value is string =>
-          typeof value === "string" &&
-          (validPermissions as readonly string[]).includes(value),
-      ),
-    ),
-  );
-}
-
-export async function getPermissionsForRole(role: string): Promise<PermissionValue[]> {
-  const row = await prisma.rolePermission.findUnique({ where: { role } });
-  if (row && Array.isArray(row.permissions)) {
-    return row.permissions.filter(
-      (value): value is PermissionValue =>
-        typeof value === "string" &&
-        (validPermissions as readonly string[]).includes(value),
-    );
-  }
-  return defaultPermissionsByRole[role] ?? [];
-}
-
 // ---------------------------------------------------------------------------
 // Register
 // ---------------------------------------------------------------------------
 
-export interface RegisterInput {
-  email: string;
-  password: string;
-  full_name: string;
-  role?: string;
-}
-
 export async function registerUser(input: RegisterInput) {
   const normalizedEmail = input.email.trim().toLowerCase();
 
-  const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+  const existing = await prisma.user.findUnique({
+    where: { email: normalizedEmail },
+  });
   if (existing) throw new Error("DUPLICATE_EMAIL");
 
   // Accept any active role from custom_roles table, default to WORKFORCE_PLANNER
@@ -143,7 +90,9 @@ export async function registerUser(input: RegisterInput) {
 export async function loginUser(email: string, password: string) {
   const normalizedEmail = email.trim().toLowerCase();
 
-  const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+  const user = await prisma.user.findUnique({
+    where: { email: normalizedEmail },
+  });
 
   if (!user || !(await comparePassword(password, user.password_hash))) {
     throw new Error("INVALID_CREDENTIALS");
@@ -171,7 +120,9 @@ export async function loginUser(email: string, password: string) {
 // ---------------------------------------------------------------------------
 
 export async function verifyUserEmail(token: string) {
-  const user = await prisma.user.findFirst({ where: { verification_token: token } });
+  const user = await prisma.user.findFirst({
+    where: { verification_token: token },
+  });
   if (!user) throw new Error("INVALID_TOKEN");
 
   const updated = await prisma.user.update({
@@ -193,7 +144,9 @@ export async function verifyUserEmail(token: string) {
 export async function resendVerificationToken(email: string) {
   const normalizedEmail = email.trim().toLowerCase();
 
-  const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+  const user = await prisma.user.findUnique({
+    where: { email: normalizedEmail },
+  });
   if (!user) throw new Error("USER_NOT_FOUND");
   if (user.is_verified) throw new Error("ALREADY_VERIFIED");
 
@@ -211,7 +164,10 @@ export async function resendVerificationToken(email: string) {
 // ---------------------------------------------------------------------------
 
 export async function getUserById(id: string) {
-  const user = await prisma.user.findUnique({ where: { id }, select: userSelect });
+  const user = await prisma.user.findUnique({
+    where: { id },
+    select: userSelect,
+  });
   if (!user) return null;
   const permissions = await getPermissionsForRole(user.role);
   return { ...user, permissions };
@@ -274,7 +230,7 @@ export async function listAllRolePermissions() {
 
 export async function setRolePermissions(role: string, permissions: string[]) {
   return prisma.rolePermission.upsert({
-    where:  { role },
+    where: { role },
     create: { role, permissions },
     update: { permissions },
   });
@@ -296,12 +252,6 @@ export async function setUserPermissions(id: string, permissions: string[]) {
 // Custom Role Management
 // ---------------------------------------------------------------------------
 
-export interface CreateRoleInput {
-  name: string;
-  display_name: string;
-  description?: string;
-}
-
 /** Get all roles (system + custom) — single source of truth: custom_roles table */
 export async function getAllRoles() {
   const roles = await prisma.customRole.findMany({
@@ -310,27 +260,29 @@ export async function getAllRoles() {
   });
 
   return roles.map((role) => ({
-    id:           role.id,
-    name:         role.name,
+    id: role.id,
+    name: role.name,
     display_name: role.display_name,
-    description:  role.description,
-    is_system:    role.is_system,
-    is_active:    role.is_active,
+    description: role.description,
+    is_system: role.is_system,
+    is_active: role.is_active,
   }));
 }
 
 /** Create a new custom role */
 export async function createCustomRole(input: CreateRoleInput) {
-  const existing = await prisma.customRole.findUnique({ where: { name: input.name } });
+  const existing = await prisma.customRole.findUnique({
+    where: { name: input.name },
+  });
   if (existing) throw new Error("ROLE_EXISTS");
 
   const role = await prisma.customRole.create({
     data: {
-      name:         input.name,
+      name: input.name,
       display_name: input.display_name,
-      description:  input.description || null,
-      is_system:    false,   // user-created roles are never system roles
-      is_active:    true,
+      description: input.description || null,
+      is_system: false, // user-created roles are never system roles
+      is_active: true,
     },
   });
 

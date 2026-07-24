@@ -7,60 +7,15 @@
  * Controllers call these methods and only deal with HTTP concerns (status
  * codes, request/response shape). No Express types live here.
  */
-import { PlanStatus, PlanningPeriod, EmploymentType, Priority, Prisma } from "@prisma/client";
+import { PlanStatus, EmploymentType, Priority, Prisma } from "@prisma/client";
 import { prisma } from "src/utils/prisma";
-
-// ---------------------------------------------------------------------------
-// Shared types
-// ---------------------------------------------------------------------------
-
-export interface CreatePlanInput {
-  title: string;
-  department_id: string;
-  fiscal_year: number;
-  planning_period?: PlanningPeriod;
-  quarter?: number | null;
-  justification?: string;
-  positions?: Array<{
-    title: string;
-    count: number;
-    employment_type: string;
-    priority: string;
-  }>;
-  created_by_id: string;
-}
-
-export interface UpdatePlanInput {
-  title?: string;
-  department_id?: string;
-  fiscal_year?: number;
-  planning_period?: PlanningPeriod;
-  quarter?: number;
-  justification?: string;
-  positions?: Array<{
-    title: string;
-    count: number;
-    employment_type: string;
-    priority: string;
-  }>;
-  save_as_new_version?: boolean;
-  updated_by_id: string;
-}
-
-export interface ReviewPlanInput {
-  action: "approve" | "reject";
-  comment?: string;
-  actor_id: string;
-  role: string;
-}
-
-export interface AttachmentInput {
-  plan_id: string;
-  filename: string;
-  filepath: string;
-  mimetype: string;
-  size: number;
-}
+import type {
+  AttachmentInput,
+  CreatePlanInput,
+  PlanPositionInput,
+  ReviewPlanInput,
+  UpdatePlanInput,
+} from "src/types/workforcePlan";
 
 // ---------------------------------------------------------------------------
 // Shared Prisma include — used by every plan query for consistent shape
@@ -91,17 +46,16 @@ export const planInclude = {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function buildSnapshot(plan: Record<string, unknown>) {
+function buildSnapshot(plan: unknown) {
   return JSON.parse(JSON.stringify(plan));
 }
 
-function mapPositions(
-  positions: Array<Record<string, string | number>>,
-) {
+function mapPositions(positions: PlanPositionInput[]) {
   return positions.map((p) => ({
     title: String(p.title),
     count: Number(p.count) || 1,
-    employment_type: (p.employment_type as EmploymentType) || EmploymentType.FULL_TIME,
+    employment_type:
+      (p.employment_type as EmploymentType) || EmploymentType.FULL_TIME,
     priority: (p.priority as Priority) || Priority.MEDIUM,
   }));
 }
@@ -184,7 +138,10 @@ export async function getDashboardData(role: string) {
   // Global KPIs
   const totalApprovedHc = allPlans
     .filter((p) => p.status === "APPROVED")
-    .reduce((s, p) => s + p.positions.reduce((ps, pos) => ps + pos.count, 0), 0);
+    .reduce(
+      (s, p) => s + p.positions.reduce((ps, pos) => ps + pos.count, 0),
+      0,
+    );
 
   const totalCurrentStaff = departments.reduce((s, d) => s + d.current_hc, 0);
 
@@ -270,7 +227,9 @@ export async function createPlan(input: CreatePlanInput) {
       version: 1,
       created_by_id: input.created_by_id,
       positions: input.positions?.length
-        ? { create: mapPositions(input.positions as Array<Record<string, string | number>>) }
+        ? {
+            create: mapPositions(input.positions),
+          }
         : undefined,
     },
     include: planInclude,
@@ -280,7 +239,7 @@ export async function createPlan(input: CreatePlanInput) {
     data: {
       plan_id: plan.id,
       version: 1,
-      snapshot: buildSnapshot(plan as unknown as Record<string, unknown>),
+      snapshot: buildSnapshot(plan),
       created_by_id: input.created_by_id,
     },
   });
@@ -329,7 +288,9 @@ export async function updatePlan(id: string, input: UpdatePlanInput) {
       status: newStatus,
       last_saved_at: new Date(),
       positions: input.positions?.length
-        ? { create: mapPositions(input.positions as Array<Record<string, string | number>>) }
+        ? {
+            create: mapPositions(input.positions),
+          }
         : undefined,
     },
     include: planInclude,
@@ -340,7 +301,7 @@ export async function updatePlan(id: string, input: UpdatePlanInput) {
       data: {
         plan_id: plan.id,
         version: newVersion,
-        snapshot: buildSnapshot(plan as unknown as Record<string, unknown>),
+        snapshot: buildSnapshot(plan),
         created_by_id: input.updated_by_id,
       },
     });

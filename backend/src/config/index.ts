@@ -21,7 +21,8 @@ import dotenv from "dotenv";
 import path from "path";
 
 // Load .env before anything else reads process.env
-dotenv.config();
+const envPath = path.resolve(__dirname, "..", "..", ".env");
+dotenv.config({ path: envPath });
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -33,7 +34,7 @@ function required(name: string): string {
   if (!value || value.trim() === "") {
     throw new Error(
       `[config] Missing required environment variable: ${name}\n` +
-      `  Add it to your .env file or deployment environment and restart.`,
+        `  Add it to your .env file or deployment environment and restart.`,
     );
   }
   return value.trim();
@@ -92,18 +93,14 @@ export const config = Object.freeze({
 
   // ── File uploads ────────────────────────────────────────────────────────
   /**
-   * Absolute path to the directory where uploaded attachments are stored.
-   * Default: <project-root>/uploads
+   * Absolute path to the directory : <project-root>/uploads
    */
-  uploadDir: optional(
-    "UPLOAD_DIR",
-    path.join(process.cwd(), "uploads"),
-  ),
+  uploadDir: optional("UPLOAD_DIR", path.join(process.cwd(), "uploads")),
 
-  /** Maximum allowed upload size in bytes. Default: 10 MB */
+  /** Maximum allowed upload size in bytes (10 MB) */
   uploadMaxBytes: optionalInt("UPLOAD_MAX_BYTES", 10 * 1024 * 1024),
 
-  /** Allowed MIME types for plan attachments */
+  /** Allowed MIME(file) types for plan attachments */
   allowedMimeTypes: [
     "application/pdf",
     "application/msword",
@@ -112,7 +109,6 @@ export const config = Object.freeze({
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     "image/jpeg",
     "image/png",
-    "image/gif",
   ] as readonly string[],
 });
 

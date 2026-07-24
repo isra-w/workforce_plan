@@ -5,34 +5,67 @@
  * results to HTTP responses. No Prisma or database logic lives here.
  */
 import { Response, NextFunction } from "express";
-import { AuthRequest } from "src/middleware/authMiddleware";
+import {
+  AuthRequest,
+  normalizePermissions,
+} from "src/middleware/authMiddleware";
 import * as authService from "src/services/authService";
 
 // ---------------------------------------------------------------------------
 // register
 // ---------------------------------------------------------------------------
-export const register = async (req: AuthRequest, res: Response, next: NextFunction) => {
+export const register = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
     const { email, password, full_name, role } = req.body;
 
     if (!email || !password || !full_name) {
-      return res.status(400).json({ status: "fail", message: "Full name, email, and password are required" });
+      return res
+        .status(400)
+        .json({
+          status: "fail",
+          message: "Full name, email, and password are required",
+        });
     }
     if (String(password).length < 8) {
-      return res.status(400).json({ status: "fail", message: "Password must be at least 8 characters" });
+      return res
+        .status(400)
+        .json({
+          status: "fail",
+          message: "Password must be at least 8 characters",
+        });
     }
 
     let result;
     try {
-      result = await authService.registerUser({ email, password, full_name, role });
+      result = await authService.registerUser({
+        email,
+        password,
+        full_name,
+        role,
+      });
     } catch (err: unknown) {
       if ((err as Error).message === "DUPLICATE_EMAIL") {
-        return res.status(400).json({ status: "fail", message: "An account with this email already exists" });
+        return res
+          .status(400)
+          .json({
+            status: "fail",
+            message: "An account with this email already exists",
+          });
       }
       throw err;
     }
 
-    res.status(201).json({ status: "success", message: "Account created. Please verify your email.", data: result });
+    res
+      .status(201)
+      .json({
+        status: "success",
+        message: "Account created. Please verify your email.",
+        data: result,
+      });
   } catch (error) {
     next(error);
   }
@@ -41,12 +74,18 @@ export const register = async (req: AuthRequest, res: Response, next: NextFuncti
 // ---------------------------------------------------------------------------
 // login
 // ---------------------------------------------------------------------------
-export const login = async (req: AuthRequest, res: Response, next: NextFunction) => {
+export const login = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
     const { email, password } = req.body;
 
     if (!email || !password) {
-      return res.status(400).json({ status: "fail", message: "Please provide email and password" });
+      return res
+        .status(400)
+        .json({ status: "fail", message: "Please provide email and password" });
     }
 
     let result;
@@ -55,15 +94,28 @@ export const login = async (req: AuthRequest, res: Response, next: NextFunction)
     } catch (err: unknown) {
       const msg = (err as Error).message;
       if (msg === "INVALID_CREDENTIALS") {
-        return res.status(401).json({ status: "fail", message: "Incorrect email or password" });
+        return res
+          .status(401)
+          .json({ status: "fail", message: "Incorrect email or password" });
       }
       if (msg === "ACCOUNT_INACTIVE") {
-        return res.status(401).json({ status: "fail", message: "Your account has been deactivated" });
+        return res
+          .status(401)
+          .json({
+            status: "fail",
+            message: "Your account has been deactivated",
+          });
       }
       throw err;
     }
 
-    res.status(200).json({ status: "success", token: result.token, data: { user: result.user } });
+    res
+      .status(200)
+      .json({
+        status: "success",
+        token: result.token,
+        data: { user: result.user },
+      });
   } catch (error) {
     next(error);
   }
@@ -72,19 +124,35 @@ export const login = async (req: AuthRequest, res: Response, next: NextFunction)
 // ---------------------------------------------------------------------------
 // verifyEmail
 // ---------------------------------------------------------------------------
-export const verifyEmail = async (req: AuthRequest, res: Response, next: NextFunction) => {
+export const verifyEmail = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
     let result;
     try {
       result = await authService.verifyUserEmail(req.params.token);
     } catch (err: unknown) {
       if ((err as Error).message === "INVALID_TOKEN") {
-        return res.status(400).json({ status: "fail", message: "Invalid or expired verification token" });
+        return res
+          .status(400)
+          .json({
+            status: "fail",
+            message: "Invalid or expired verification token",
+          });
       }
       throw err;
     }
 
-    res.status(200).json({ status: "success", message: "Email verified successfully", token: result.token, data: { user: result.user } });
+    res
+      .status(200)
+      .json({
+        status: "success",
+        message: "Email verified successfully",
+        token: result.token,
+        data: { user: result.user },
+      });
   } catch (error) {
     next(error);
   }
@@ -93,7 +161,11 @@ export const verifyEmail = async (req: AuthRequest, res: Response, next: NextFun
 // ---------------------------------------------------------------------------
 // resendVerification
 // ---------------------------------------------------------------------------
-export const resendVerification = async (req: AuthRequest, res: Response, next: NextFunction) => {
+export const resendVerification = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
     let result;
     try {
@@ -101,15 +173,28 @@ export const resendVerification = async (req: AuthRequest, res: Response, next: 
     } catch (err: unknown) {
       const msg = (err as Error).message;
       if (msg === "USER_NOT_FOUND") {
-        return res.status(404).json({ status: "fail", message: "No account found with this email" });
+        return res
+          .status(404)
+          .json({
+            status: "fail",
+            message: "No account found with this email",
+          });
       }
       if (msg === "ALREADY_VERIFIED") {
-        return res.status(400).json({ status: "fail", message: "Email is already verified" });
+        return res
+          .status(400)
+          .json({ status: "fail", message: "Email is already verified" });
       }
       throw err;
     }
 
-    res.status(200).json({ status: "success", message: "Verification email sent", data: result });
+    res
+      .status(200)
+      .json({
+        status: "success",
+        message: "Verification email sent",
+        data: result,
+      });
   } catch (error) {
     next(error);
   }
@@ -118,7 +203,11 @@ export const resendVerification = async (req: AuthRequest, res: Response, next: 
 // ---------------------------------------------------------------------------
 // getMe
 // ---------------------------------------------------------------------------
-export const getMe = async (req: AuthRequest, res: Response, next: NextFunction) => {
+export const getMe = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
     const user = await authService.getUserById(req.user!.id);
     res.status(200).json({ status: "success", data: { user } });
@@ -130,7 +219,11 @@ export const getMe = async (req: AuthRequest, res: Response, next: NextFunction)
 // ---------------------------------------------------------------------------
 // listUsers
 // ---------------------------------------------------------------------------
-export const listUsers = async (_req: AuthRequest, res: Response, next: NextFunction) => {
+export const listUsers = async (
+  _req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
     const users = await authService.listAllUsers();
     res.status(200).json({ status: "success", data: { users } });
@@ -142,7 +235,11 @@ export const listUsers = async (_req: AuthRequest, res: Response, next: NextFunc
 // ---------------------------------------------------------------------------
 // listRolePermissions
 // ---------------------------------------------------------------------------
-export const listRolePermissions = async (_req: AuthRequest, res: Response, next: NextFunction) => {
+export const listRolePermissions = async (
+  _req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
     const roles = await authService.listAllRolePermissions();
     res.status(200).json({ status: "success", data: { roles } });
@@ -154,17 +251,30 @@ export const listRolePermissions = async (_req: AuthRequest, res: Response, next
 // ---------------------------------------------------------------------------
 // updateRolePermissions
 // ---------------------------------------------------------------------------
-export const updateRolePermissions = async (req: AuthRequest, res: Response, next: NextFunction) => {
+export const updateRolePermissions = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
     const role = req.params.role;
     if (!role) {
       return res.status(400).json({ status: "fail", message: "Invalid role" });
     }
 
-    const permissions = authService.normalizePermissions(req.body.permissions);
-    const rolePermission = await authService.setRolePermissions(role, permissions);
+    const permissions = normalizePermissions(req.body.permissions);
+    const rolePermission = await authService.setRolePermissions(
+      role,
+      permissions,
+    );
 
-    res.status(200).json({ status: "success", message: "Role permissions updated", data: { rolePermission } });
+    res
+      .status(200)
+      .json({
+        status: "success",
+        message: "Role permissions updated",
+        data: { rolePermission },
+      });
   } catch (error) {
     next(error);
   }
@@ -173,11 +283,24 @@ export const updateRolePermissions = async (req: AuthRequest, res: Response, nex
 // ---------------------------------------------------------------------------
 // updateUserPermissions
 // ---------------------------------------------------------------------------
-export const updateUserPermissions = async (req: AuthRequest, res: Response, next: NextFunction) => {
+export const updateUserPermissions = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
-    const permissions = authService.normalizePermissions(req.body.permissions);
-    const user = await authService.setUserPermissions(req.params.id, permissions);
-    res.status(200).json({ status: "success", message: "Permissions updated", data: { user } });
+    const permissions = normalizePermissions(req.body.permissions);
+    const user = await authService.setUserPermissions(
+      req.params.id,
+      permissions,
+    );
+    res
+      .status(200)
+      .json({
+        status: "success",
+        message: "Permissions updated",
+        data: { user },
+      });
   } catch (error) {
     next(error);
   }
@@ -186,7 +309,11 @@ export const updateUserPermissions = async (req: AuthRequest, res: Response, nex
 // ---------------------------------------------------------------------------
 // getAllRoles — GET /auth/roles  (public — needed for signup dropdown)
 // ---------------------------------------------------------------------------
-export const getAllRoles = async (_req: AuthRequest, res: Response, next: NextFunction) => {
+export const getAllRoles = async (
+  _req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
     const roles = await authService.getAllRoles();
     res.status(200).json({ status: "success", data: { roles } });
@@ -198,23 +325,52 @@ export const getAllRoles = async (_req: AuthRequest, res: Response, next: NextFu
 // ---------------------------------------------------------------------------
 // createRole — POST /auth/roles/create  (HR_ADMIN only)
 // ---------------------------------------------------------------------------
-export const createRole = async (req: AuthRequest, res: Response, next: NextFunction) => {
+export const createRole = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
     const { name, display_name, description } = req.body;
 
     if (!name || !display_name) {
-      return res.status(400).json({ status: "fail", message: "Role name and display name are required" });
+      return res
+        .status(400)
+        .json({
+          status: "fail",
+          message: "Role name and display name are required",
+        });
     }
     if (!/^[A-Z_]+$/.test(name)) {
-      return res.status(400).json({ status: "fail", message: "Role name must be uppercase letters and underscores only" });
+      return res
+        .status(400)
+        .json({
+          status: "fail",
+          message: "Role name must be uppercase letters and underscores only",
+        });
     }
 
     try {
-      const role = await authService.createCustomRole({ name, display_name, description });
-      res.status(201).json({ status: "success", message: "Role created successfully", data: { role } });
+      const role = await authService.createCustomRole({
+        name,
+        display_name,
+        description,
+      });
+      res
+        .status(201)
+        .json({
+          status: "success",
+          message: "Role created successfully",
+          data: { role },
+        });
     } catch (err: unknown) {
       if ((err as Error).message === "ROLE_EXISTS") {
-        return res.status(400).json({ status: "fail", message: "A role with this name already exists" });
+        return res
+          .status(400)
+          .json({
+            status: "fail",
+            message: "A role with this name already exists",
+          });
       }
       throw err;
     }
@@ -226,23 +382,38 @@ export const createRole = async (req: AuthRequest, res: Response, next: NextFunc
 // ---------------------------------------------------------------------------
 // deleteRole — DELETE /auth/roles/:name  (HR_ADMIN only)
 // ---------------------------------------------------------------------------
-export const deleteRole = async (req: AuthRequest, res: Response, next: NextFunction) => {
+export const deleteRole = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
   try {
     const { name } = req.params;
 
     try {
       await authService.deleteCustomRole(name);
-      res.status(200).json({ status: "success", message: "Role deleted successfully" });
+      res
+        .status(200)
+        .json({ status: "success", message: "Role deleted successfully" });
     } catch (err: unknown) {
       const msg = (err as Error).message;
       if (msg === "ROLE_NOT_FOUND") {
-        return res.status(404).json({ status: "fail", message: "Role not found" });
+        return res
+          .status(404)
+          .json({ status: "fail", message: "Role not found" });
       }
       if (msg === "CANNOT_DELETE_SYSTEM_ROLE") {
-        return res.status(400).json({ status: "fail", message: "Cannot delete system roles" });
+        return res
+          .status(400)
+          .json({ status: "fail", message: "Cannot delete system roles" });
       }
       if (msg === "ROLE_IN_USE") {
-        return res.status(400).json({ status: "fail", message: "Cannot delete a role that is assigned to users" });
+        return res
+          .status(400)
+          .json({
+            status: "fail",
+            message: "Cannot delete a role that is assigned to users",
+          });
       }
       throw err;
     }
